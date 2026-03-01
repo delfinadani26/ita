@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import {
   View, Text, StyleSheet, FlatList, Pressable, Platform,
-  ActivityIndicator, Modal,
+  ActivityIndicator, Modal, ScrollView,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -10,6 +10,9 @@ import { useQuery } from "@tanstack/react-query";
 import { router } from "expo-router";
 import { useAuth } from "@/contexts/AuthContext";
 import QRCode from "react-native-qrcode-svg";
+import { LinearGradient } from "expo-linear-gradient";
+
+const ENTRY_QR_TOKEN = "CSA-ALIMENTAR-URNM-2026-ENTRADA";
 
 const CATEGORY_LABELS: Record<string, string> = {
   docente: "Docente/Investigador",

@@ -26,6 +26,10 @@ const DEGREES = [
   "Licenciatura", "Mestrado", "Doutoramento", "Pós-Doutoramento", "Outro"
 ];
 
+function isValidEmail(email: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
+}
+
 function SelectButton({ label, selected, onPress }: { label: string; selected: boolean; onPress: () => void }) {
   return (
     <Pressable
@@ -48,25 +52,49 @@ export default function RegisterScreen() {
     password: "",
     confirmPassword: "",
     academic_degree: "",
-    category: "estudante",
-    affiliation: "externo",
+    category: "docente",
+    affiliation: "urnm",
     institution: "",
   });
   const [showPassword, setShowPassword] = useState(false);
+  const [errors, setErrors] = useState<Record<string, string>>({});
 
-  const set = (key: string) => (val: string) => setForm(f => ({ ...f, [key]: val }));
+  const set = (key: string) => (val: string) => {
+    setForm(f => ({ ...f, [key]: val }));
+    setErrors(e => ({ ...e, [key]: "" }));
+  };
 
-  const handleRegister = async () => {
-    if (!form.full_name.trim() || !form.email.trim() || !form.password.trim() || !form.institution.trim()) {
-      Alert.alert("Erro", "Por favor preencha todos os campos obrigatórios");
-      return;
+  const validate = (): boolean => {
+    const newErrors: Record<string, string> = {};
+    if (!form.full_name.trim() || form.full_name.trim().length < 3) {
+      newErrors.full_name = "Nome deve ter pelo menos 3 caracteres";
+    }
+    if (!form.email.trim()) {
+      newErrors.email = "Email é obrigatório";
+    } else if (!isValidEmail(form.email)) {
+      newErrors.email = "Formato de email inválido";
+    }
+    if (!form.institution.trim()) {
+      newErrors.institution = "Instituição de origem é obrigatória";
+    }
+    if (!form.academic_degree) {
+      newErrors.academic_degree = "Seleccione o grau académico";
+    }
+    if (!form.password) {
+      newErrors.password = "Palavra-passe é obrigatória";
+    } else if (form.password.length < 6) {
+      newErrors.password = "Mínimo 6 caracteres";
     }
     if (form.password !== form.confirmPassword) {
-      Alert.alert("Erro", "As palavras-passe não coincidem");
-      return;
+      newErrors.confirmPassword = "As palavras-passe não coincidem";
     }
-    if (form.password.length < 6) {
-      Alert.alert("Erro", "A palavra-passe deve ter pelo menos 6 caracteres");
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const handleRegister = async () => {
+    if (!validate()) {
+      Alert.alert("Formulário inválido", "Por favor corrija os erros assinalados");
       return;
     }
     setLoading(true);
@@ -82,7 +110,12 @@ export default function RegisterScreen() {
       });
       router.replace("/(tabs)");
     } catch (err: any) {
-      Alert.alert("Erro", err.message || "Erro ao registar");
+      const msg = err.message || "Erro ao registar";
+      if (msg.includes("409") || msg.toLowerCase().includes("já registado")) {
+        Alert.alert("Email em uso", "Este email já está registado. Faça login ou use outro email.");
+      } else {
+        Alert.alert("Erro de registo", msg);
+      }
     } finally {
       setLoading(false);
     }
@@ -112,16 +145,39 @@ export default function RegisterScreen() {
             <Ionicons name="person-add" size={32} color={Colors.accent} />
           </View>
           <Text style={styles.title}>Criar Conta</Text>
-          <Text style={styles.subtitle}>Preencha os dados para se registar</Text>
+          <Text style={styles.subtitle}>Congresso sobre Sistemas Alimentares 2026</Text>
         </View>
 
         <View style={styles.card}>
-          <InputField icon="person-outline" label="Nome Completo *" placeholder="O seu nome completo" value={form.full_name} onChangeText={set("full_name")} />
-          <InputField icon="mail-outline" label="Email *" placeholder="seuemail@exemplo.com" value={form.email} onChangeText={set("email")} keyboardType="email-address" autoCapitalize="none" />
-          <InputField icon="business-outline" label="Instituição de Origem *" placeholder="Nome da sua instituição" value={form.institution} onChangeText={set("institution")} />
+          <InputField
+            icon="person-outline"
+            label="Nome Completo *"
+            placeholder="O seu nome completo"
+            value={form.full_name}
+            onChangeText={set("full_name")}
+            error={errors.full_name}
+          />
+          <InputField
+            icon="mail-outline"
+            label="Email *"
+            placeholder="seuemail@exemplo.com"
+            value={form.email}
+            onChangeText={set("email")}
+            keyboardType="email-address"
+            autoCapitalize="none"
+            error={errors.email}
+          />
+          <InputField
+            icon="business-outline"
+            label="Instituição de Origem *"
+            placeholder="Nome da sua instituição"
+            value={form.institution}
+            onChangeText={set("institution")}
+            error={errors.institution}
+          />
 
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>Grau Académico</Text>
+            <Text style={styles.label}>Grau Académico *</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.hScroll}>
               <View style={styles.hRow}>
                 {DEGREES.map(d => (
@@ -129,6 +185,7 @@ export default function RegisterScreen() {
                 ))}
               </View>
             </ScrollView>
+            {errors.academic_degree ? <Text style={styles.errorText}>{errors.academic_degree}</Text> : null}
           </View>
 
           <View style={styles.inputGroup}>
@@ -147,11 +204,18 @@ export default function RegisterScreen() {
                 <SelectButton key={a.value} label={a.label} selected={form.affiliation === a.value} onPress={() => set("affiliation")(a.value)} />
               ))}
             </View>
+            <Text style={styles.affiliationNote}>
+              {form.category === "preletor"
+                ? "Taxa única de 20.000 Kz independente da filiação"
+                : form.affiliation === "urnm"
+                ? "Tarifa URNM aplicada"
+                : "Tarifa externa aplicada"}
+            </Text>
           </View>
 
           <View style={styles.inputGroup}>
             <Text style={styles.label}>Palavra-passe *</Text>
-            <View style={styles.inputWrapper}>
+            <View style={[styles.inputWrapper, errors.password ? styles.inputWrapperError : null]}>
               <Ionicons name="lock-closed-outline" size={20} color={Colors.textSecondary} style={styles.inputIcon} />
               <TextInput
                 style={styles.input}
@@ -165,9 +229,18 @@ export default function RegisterScreen() {
                 <Ionicons name={showPassword ? "eye-off-outline" : "eye-outline"} size={20} color={Colors.textSecondary} />
               </Pressable>
             </View>
+            {errors.password ? <Text style={styles.errorText}>{errors.password}</Text> : null}
           </View>
 
-          <InputField icon="lock-closed-outline" label="Confirmar Palavra-passe *" placeholder="Repita a palavra-passe" value={form.confirmPassword} onChangeText={set("confirmPassword")} secureTextEntry />
+          <InputField
+            icon="lock-closed-outline"
+            label="Confirmar Palavra-passe *"
+            placeholder="Repita a palavra-passe"
+            value={form.confirmPassword}
+            onChangeText={set("confirmPassword")}
+            secureTextEntry
+            error={errors.confirmPassword}
+          />
 
           <Pressable
             style={({ pressed }) => [styles.registerBtn, pressed && { opacity: 0.85 }]}
@@ -200,11 +273,11 @@ export default function RegisterScreen() {
   );
 }
 
-function InputField({ icon, label, placeholder, value, onChangeText, keyboardType, autoCapitalize, secureTextEntry }: any) {
+function InputField({ icon, label, placeholder, value, onChangeText, keyboardType, autoCapitalize, secureTextEntry, error }: any) {
   return (
     <View style={styles.inputGroup}>
       <Text style={styles.label}>{label}</Text>
-      <View style={styles.inputWrapper}>
+      <View style={[styles.inputWrapper, error ? styles.inputWrapperError : null]}>
         <Ionicons name={icon} size={20} color={Colors.textSecondary} style={styles.inputIcon} />
         <TextInput
           style={styles.input}
@@ -217,6 +290,7 @@ function InputField({ icon, label, placeholder, value, onChangeText, keyboardTyp
           secureTextEntry={secureTextEntry}
         />
       </View>
+      {error ? <Text style={styles.errorText}>{error}</Text> : null}
     </View>
   );
 }
@@ -248,9 +322,11 @@ const styles = StyleSheet.create({
     color: Colors.white,
   },
   subtitle: {
-    fontSize: 13,
+    fontSize: 12,
     fontFamily: "Poppins_400Regular",
     color: "rgba(255,255,255,0.6)",
+    textAlign: "center",
+    paddingHorizontal: 20,
   },
   card: {
     backgroundColor: Colors.white,
@@ -277,6 +353,9 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     borderWidth: 1.5,
     borderColor: Colors.border,
+  },
+  inputWrapperError: {
+    borderColor: Colors.danger,
   },
   inputIcon: { paddingLeft: 14 },
   input: {
@@ -313,6 +392,19 @@ const styles = StyleSheet.create({
   selectBtnTextActive: {
     color: Colors.white,
     fontFamily: "Poppins_600SemiBold",
+  },
+  affiliationNote: {
+    fontSize: 11,
+    fontFamily: "Poppins_400Regular",
+    color: Colors.textLight,
+    fontStyle: "italic",
+    marginTop: 6,
+  },
+  errorText: {
+    fontSize: 11,
+    fontFamily: "Poppins_400Regular",
+    color: Colors.danger,
+    marginTop: 4,
   },
   registerBtn: { marginTop: 8, borderRadius: 14, overflow: "hidden" },
   registerBtnGradient: {

@@ -22,6 +22,13 @@ const PRICING = [
   { cat: "Outros", urnm: "5.000 Kz", ext: "10.000 Kz" },
 ];
 
+const CATEGORY_LABELS: Record<string, string> = {
+  docente: "Docente/Investigador",
+  estudante: "Estudante",
+  outro: "Outro",
+  preletor: "Preletor (Autor)",
+};
+
 function StatCard({ label, value, color, icon }: { label: string; value: string | number; color: string; icon: string }) {
   return (
     <View style={[styles.statCard, { borderLeftColor: color }]}>
@@ -29,6 +36,57 @@ function StatCard({ label, value, color, icon }: { label: string; value: string 
       <Text style={styles.statValue}>{value}</Text>
       <Text style={styles.statLabel}>{label}</Text>
     </View>
+  );
+}
+
+function AccessStatusCard({ user }: { user: any }) {
+  let status: "confirmed" | "pending" | "unverified" = "unverified";
+  let title = "";
+  let subtitle = "";
+  let bgColor = Colors.warning;
+  let icon = "time-outline";
+
+  if (user.payment_status === "paid" || user.payment_status === "exempt") {
+    status = "confirmed";
+    title = `Bem-vindo(a), ${user.full_name.split(" ")[0]}!`;
+    subtitle = "Acesso ao congresso confirmado";
+    bgColor = Colors.success;
+    icon = "checkmark-circle-outline";
+  } else if (user.payment_status === "approved") {
+    status = "pending";
+    title = "Aprovado — Aguarda Pagamento";
+    subtitle = `Efectue o pagamento de ${user.payment_amount?.toLocaleString("pt-AO") || "—"} Kz para confirmar`;
+    bgColor = Colors.info;
+    icon = "card-outline";
+  } else {
+    status = "unverified";
+    title = "Inscrição Pendente";
+    subtitle = "Aguarde a aprovação da sua comunicação ou contacte a organização";
+    bgColor = Colors.warning;
+    icon = "hourglass-outline";
+  }
+
+  return (
+    <Pressable
+      style={({ pressed }) => [styles.accessCard, pressed && { opacity: 0.9 }]}
+      onPress={() => router.push("/entry-scan")}
+    >
+      <LinearGradient
+        colors={[bgColor, bgColor + "CC"]}
+        style={styles.accessCardGrad}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 0 }}
+      >
+        <View style={styles.accessLeft}>
+          <Ionicons name={icon as any} size={32} color={Colors.white} />
+        </View>
+        <View style={styles.accessMiddle}>
+          <Text style={styles.accessTitle}>{title}</Text>
+          <Text style={styles.accessSub}>{subtitle}</Text>
+        </View>
+        <Ionicons name="qr-code-outline" size={22} color="rgba(255,255,255,0.7)" />
+      </LinearGradient>
+    </Pressable>
   );
 }
 
@@ -53,6 +111,9 @@ export default function HomeScreen() {
   const hasStarted = today >= start;
   const isOver = today > end;
 
+  const categoryLabel = user ? (CATEGORY_LABELS[user.category] || user.category) : "";
+  const typeLabel = user ? `${categoryLabel} (${user.affiliation === "urnm" ? "URNM" : "Externo"})` : "";
+
   return (
     <ScrollView
       style={styles.container}
@@ -70,15 +131,16 @@ export default function HomeScreen() {
         end={{ x: 1, y: 1 }}
       >
         <View style={styles.heroBadge}>
-          <Ionicons name="school" size={14} color={Colors.accent} />
-          <Text style={styles.heroBadgeText}>Congresso Científico</Text>
+          <Ionicons name="restaurant" size={14} color={Colors.accent} />
+          <Text style={styles.heroBadgeText}>CSA · URNM</Text>
         </View>
-        <Text style={styles.heroTitle}>URNM 2026</Text>
-        <Text style={styles.heroSub}>Congresso Agro-alimentar</Text>
+        <Text style={styles.heroTitle}>CSA 2026</Text>
+        <Text style={styles.heroSub}>Congresso sobre Sistemas Alimentares</Text>
         <View style={styles.heroDates}>
           <Ionicons name="calendar-outline" size={16} color={Colors.accent} />
           <Text style={styles.heroDatesText}>01 Março — 30 Abril 2026</Text>
         </View>
+        <Text style={styles.heroUniversity}>Universidade Rainha N'Jinga Mbande</Text>
         {!isOver && (
           <View style={styles.countdownBox}>
             <Text style={styles.countdownNum}>{daysLeft}</Text>
@@ -98,11 +160,7 @@ export default function HomeScreen() {
         <View style={styles.welcomeCard}>
           <View>
             <Text style={styles.welcomeGreeting}>Olá, {user.full_name.split(" ")[0]}</Text>
-            <Text style={styles.welcomeSub}>
-              {user.category === "docente" ? "Docente/Investigador" :
-               user.category === "estudante" ? "Estudante" :
-               user.category === "preletor" ? "Preletor" : "Participante"}{" · "}{user.affiliation.toUpperCase()}
-            </Text>
+            <Text style={styles.welcomeSub}>{typeLabel}</Text>
           </View>
           <View style={[styles.roleBadge, {
             backgroundColor: user.role === "admin" ? Colors.danger :
@@ -115,6 +173,21 @@ export default function HomeScreen() {
         </View>
       )}
 
+      {user && user.role === "participant" && (
+        <AccessStatusCard user={user} />
+      )}
+
+      {user && (
+        <Pressable
+          style={({ pressed }) => [styles.entryScanBtn, pressed && { opacity: 0.85 }]}
+          onPress={() => router.push("/entry-scan")}
+        >
+          <Ionicons name="scan-outline" size={20} color={Colors.primary} />
+          <Text style={styles.entryScanText}>Verificar Acesso ao Congresso</Text>
+          <Ionicons name="chevron-forward" size={18} color={Colors.primary} />
+        </Pressable>
+      )}
+
       <Text style={styles.sectionTitle}>Participantes Registados</Text>
       <ScrollView horizontal showsHorizontalScrollIndicator={false}>
         <View style={styles.statsRow}>
@@ -125,6 +198,7 @@ export default function HomeScreen() {
           <StatCard label="Estudantes Externos" value={stats?.["estudante_externo"] ?? 0} color="#8B5CF6" icon="reader-outline" />
           <StatCard label="Outros URNM" value={stats?.["outro_urnm"] ?? 0} color={Colors.warning} icon="person-outline" />
           <StatCard label="Outros Externos" value={stats?.["outro_externo"] ?? 0} color={Colors.danger} icon="globe-outline" />
+          <StatCard label="Prelectores" value={(stats?.["preletor_urnm"] ?? 0) + (stats?.["preletor_externo"] ?? 0)} color="#EC4899" icon="mic-outline" />
         </View>
       </ScrollView>
 
@@ -171,7 +245,7 @@ export default function HomeScreen() {
             end={{ x: 1, y: 0 }}
           >
             <Ionicons name="qr-code-outline" size={22} color={Colors.white} />
-            <Text style={styles.scannerBtnText}>Abrir Scanner QR</Text>
+            <Text style={styles.scannerBtnText}>Scanner QR — Check-in</Text>
           </LinearGradient>
         </Pressable>
       )}
@@ -200,7 +274,8 @@ const styles = StyleSheet.create({
   },
   heroBadgeText: { fontSize: 11, fontFamily: "Poppins_600SemiBold", color: Colors.accent, letterSpacing: 1 },
   heroTitle: { fontSize: 36, fontFamily: "Poppins_700Bold", color: Colors.white, letterSpacing: 2 },
-  heroSub: { fontSize: 14, fontFamily: "Poppins_400Regular", color: "rgba(255,255,255,0.7)" },
+  heroSub: { fontSize: 14, fontFamily: "Poppins_600SemiBold", color: "rgba(255,255,255,0.85)" },
+  heroUniversity: { fontSize: 11, fontFamily: "Poppins_400Regular", color: "rgba(255,255,255,0.6)" },
   heroDates: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 4 },
   heroDatesText: { fontSize: 13, fontFamily: "Poppins_600SemiBold", color: Colors.accentLight },
   countdownBox: {
@@ -220,7 +295,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.white,
     borderRadius: 16,
     padding: 16,
-    marginBottom: 20,
+    marginBottom: 12,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
@@ -234,6 +309,34 @@ const styles = StyleSheet.create({
   welcomeSub: { fontSize: 12, fontFamily: "Poppins_400Regular", color: Colors.textSecondary, marginTop: 2 },
   roleBadge: { paddingHorizontal: 12, paddingVertical: 5, borderRadius: 20 },
   roleText: { fontSize: 12, fontFamily: "Poppins_600SemiBold", color: Colors.white },
+  accessCard: { borderRadius: 16, overflow: "hidden", marginBottom: 12 },
+  accessCardGrad: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 16,
+    gap: 12,
+  },
+  accessLeft: { width: 44, alignItems: "center" },
+  accessMiddle: { flex: 1, gap: 3 },
+  accessTitle: { fontSize: 14, fontFamily: "Poppins_700Bold", color: Colors.white },
+  accessSub: { fontSize: 11, fontFamily: "Poppins_400Regular", color: "rgba(255,255,255,0.85)", lineHeight: 16 },
+  entryScanBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    backgroundColor: Colors.white,
+    borderRadius: 14,
+    padding: 14,
+    marginBottom: 20,
+    borderWidth: 1.5,
+    borderColor: Colors.primary + "30",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 4,
+    elevation: 1,
+  },
+  entryScanText: { flex: 1, fontSize: 14, fontFamily: "Poppins_600SemiBold", color: Colors.primary },
   sectionTitle: {
     fontSize: 17,
     fontFamily: "Poppins_700Bold",

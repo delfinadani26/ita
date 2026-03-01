@@ -1,5 +1,4 @@
 import React, { createContext, useContext, useState, useEffect, useMemo, ReactNode } from "react";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { apiRequest, getApiUrl } from "@/lib/query-client";
 import { fetch } from "expo/fetch";
 
@@ -73,13 +72,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const register = async (data: RegisterData) => {
     const res = await apiRequest("POST", "/api/auth/register", data);
-    const user = await res.json();
-    setUser(user);
+    const u = await res.json();
+    setUser(u);
   };
 
   const logout = async () => {
-    await apiRequest("POST", "/api/auth/logout", {});
-    setUser(null);
+    try {
+      await apiRequest("POST", "/api/auth/logout", {});
+    } catch {
+    } finally {
+      setUser(null);
+    }
   };
 
   const value = useMemo(() => ({
