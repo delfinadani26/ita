@@ -298,6 +298,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
     return res.json(safe);
   });
 
+  app.get("/api/program", requireAuth, async (req: Request, res: Response) => {
+    const program = await db.getProgram();
+    return res.json(program);
+  });
+
+  app.patch("/api/program/:id/toggle", requireAuth, async (req: Request, res: Response) => {
+    const me = await db.getUserById(req.session.userId!);
+    if (!me || me.role !== "admin") return res.status(403).json({ message: "Sem permissão" });
+    const updated = await db.toggleProgramItem(parseInt(req.params.id));
+    if (!updated) return res.status(404).json({ message: "Item não encontrado" });
+    return res.json(updated);
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }

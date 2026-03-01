@@ -16,6 +16,10 @@ function NativeTabLayout({ isAdmin, isAvaliador }: { isAdmin: boolean; isAvaliad
         <Icon sf={{ default: "house", selected: "house.fill" }} />
         <Label>Início</Label>
       </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="program">
+        <Icon sf={{ default: "calendar", selected: "calendar.fill" }} />
+        <Label>Programa</Label>
+      </NativeTabs.Trigger>
       <NativeTabs.Trigger name="submissions">
         <Icon sf={{ default: "doc.text", selected: "doc.text.fill" }} />
         <Label>Submissões</Label>
@@ -74,6 +78,18 @@ function ClassicTabLayout({ isAdmin, isAvaliador }: { isAdmin: boolean; isAvalia
               <SymbolView name="house" tintColor={color} size={24} />
             ) : (
               <Ionicons name="home-outline" size={24} color={color} />
+            ),
+        }}
+      />
+      <Tabs.Screen
+        name="program"
+        options={{
+          title: "Programa",
+          tabBarIcon: ({ color }) =>
+            isIOS ? (
+              <SymbolView name="calendar" tintColor={color} size={24} />
+            ) : (
+              <Ionicons name="calendar-outline" size={24} color={color} />
             ),
         }}
       />

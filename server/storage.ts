@@ -52,6 +52,16 @@ export interface Message {
   recipient_name?: string;
 }
 
+export interface ProgramItem {
+  id: number;
+  title: string;
+  description?: string;
+  date: string;
+  location?: string;
+  is_completed: boolean;
+  created_at: string;
+}
+
 export const db = {
   async createUser(data: Omit<User, "id" | "created_at" | "is_checked_in">): Promise<User> {
     const result = await pool.query(
@@ -238,6 +248,19 @@ export const db = {
   async checkInUser(id: number): Promise<User | null> {
     const result = await pool.query(
       "UPDATE users SET is_checked_in = TRUE WHERE id = $1 RETURNING *",
+      [id]
+    );
+    return result.rows[0] || null;
+  },
+
+  async getProgram(): Promise<ProgramItem[]> {
+    const result = await pool.query("SELECT * FROM congress_program ORDER BY date ASC");
+    return result.rows;
+  },
+
+  async toggleProgramItem(id: number): Promise<ProgramItem | null> {
+    const result = await pool.query(
+      "UPDATE congress_program SET is_completed = NOT is_completed WHERE id = $1 RETURNING *",
       [id]
     );
     return result.rows[0] || null;
