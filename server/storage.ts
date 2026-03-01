@@ -25,6 +25,8 @@ export interface Submission {
   id: number;
   user_id: number;
   title: string;
+  abstract?: string;
+  keywords?: string;
   file_uri?: string;
   file_name?: string;
   thematic_axis: number;
@@ -71,7 +73,7 @@ export const db = {
   },
 
   async getAllUsers(): Promise<User[]> {
-    const result = await pool.query("SELECT * FROM users ORDER BY created_at DESC");
+    const result = await pool.query("SELECT * FROM users ORDER BY created_at ASC");
     return result.rows;
   },
 
@@ -100,11 +102,11 @@ export const db = {
     return stats;
   },
 
-  async createSubmission(data: Pick<Submission, "user_id" | "title" | "file_uri" | "file_name" | "thematic_axis">): Promise<Submission> {
+  async createSubmission(data: Pick<Submission, "user_id" | "title" | "abstract" | "keywords" | "file_uri" | "file_name" | "thematic_axis">): Promise<Submission> {
     const result = await pool.query(
-      `INSERT INTO submissions (user_id, title, file_uri, file_name, thematic_axis)
-       VALUES ($1,$2,$3,$4,$5) RETURNING *`,
-      [data.user_id, data.title, data.file_uri, data.file_name, data.thematic_axis]
+      `INSERT INTO submissions (user_id, title, abstract, keywords, file_uri, file_name, thematic_axis)
+       VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
+      [data.user_id, data.title, data.abstract, data.keywords, data.file_uri, data.file_name, data.thematic_axis]
     );
     return result.rows[0];
   },

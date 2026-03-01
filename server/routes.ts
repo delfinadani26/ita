@@ -193,7 +193,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/submissions", requireAuth, upload.single("file"), async (req: Request, res: Response) => {
     try {
-      const { title, thematic_axis } = req.body;
+      const { title, abstract, keywords, thematic_axis } = req.body;
       if (!title || !thematic_axis) {
         return res.status(400).json({ message: "Título e eixo temático são obrigatórios" });
       }
@@ -209,6 +209,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const sub = await db.createSubmission({
         user_id: req.session.userId!,
         title,
+        abstract: abstract || undefined,
+        keywords: keywords || undefined,
         file_uri: fileUri,
         file_name: fileName,
         thematic_axis: parseInt(thematic_axis),

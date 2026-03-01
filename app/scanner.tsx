@@ -35,7 +35,13 @@ export default function ScannerScreen() {
     await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
     try {
-      const res = await apiRequest("POST", "/api/scanner/checkin", { qr_code: data });
+      let qrCode = data;
+      try {
+        const parsed = JSON.parse(data);
+        if (parsed?.id) qrCode = parsed.id;
+      } catch {}
+
+      const res = await apiRequest("POST", "/api/scanner/checkin", { qr_code: qrCode });
       const result = await res.json();
       setResultModal(result);
     } catch (err: any) {

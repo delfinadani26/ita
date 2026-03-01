@@ -6,8 +6,8 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { Colors } from "@/constants/colors";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { apiRequest, getApiUrl } from "@/lib/query-client";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { getApiUrl } from "@/lib/query-client";
 import { router } from "expo-router";
 import * as DocumentPicker from "expo-document-picker";
 import { fetch } from "expo/fetch";
@@ -26,7 +26,7 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 const STATUS_LABELS: Record<string, string> = {
-  pending: "Pendente",
+  pending: "Aguardando Aprovação",
   approved: "Aprovado",
   rejected: "Rejeitado",
 };
@@ -48,6 +48,8 @@ export default function SubmissionsScreen() {
 
   const [showForm, setShowForm] = useState(false);
   const [title, setTitle] = useState("");
+  const [abstract, setAbstract] = useState("");
+  const [keywords, setKeywords] = useState("");
   const [selectedAxis, setSelectedAxis] = useState(0);
   const [selectedFile, setSelectedFile] = useState<any>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -77,6 +79,8 @@ export default function SubmissionsScreen() {
 
       const formData = new FormData();
       formData.append("title", title.trim());
+      formData.append("abstract", abstract.trim());
+      formData.append("keywords", keywords.trim());
       formData.append("thematic_axis", String(selectedAxis + 1));
 
       if (selectedFile) {
@@ -101,9 +105,11 @@ export default function SubmissionsScreen() {
       queryClient.invalidateQueries({ queryKey: ["/api/submissions"] });
       setShowForm(false);
       setTitle("");
+      setAbstract("");
+      setKeywords("");
       setSelectedAxis(0);
       setSelectedFile(null);
-      Alert.alert("Sucesso", "Comunicação submetida com sucesso! Aguarde a revisão.");
+      Alert.alert("Sucesso", "Comunicação submetida com sucesso! Aguarde a aprovação.");
     } catch (err: any) {
       Alert.alert("Erro", err.message || "Erro ao submeter");
     } finally {
@@ -152,6 +158,28 @@ export default function SubmissionsScreen() {
               multiline
               numberOfLines={2}
             />
+
+            <Text style={styles.formLabel}>Resumo</Text>
+            <TextInput
+              style={[styles.formInput, styles.formInputTall]}
+              placeholder="Escreva o resumo da sua comunicação (máx. 300 palavras)"
+              placeholderTextColor={Colors.mediumGray}
+              value={abstract}
+              onChangeText={setAbstract}
+              multiline
+              numberOfLines={5}
+              textAlignVertical="top"
+            />
+
+            <Text style={styles.formLabel}>Palavras-Chave</Text>
+            <TextInput
+              style={styles.formInput}
+              placeholder="Ex: agricultura, inovação, sustentabilidade"
+              placeholderTextColor={Colors.mediumGray}
+              value={keywords}
+              onChangeText={setKeywords}
+            />
+            <Text style={styles.formHint}>Separe as palavras-chave com vírgulas</Text>
 
             <Text style={styles.formLabel}>Eixo Temático *</Text>
             {AXES.map((axis, i) => (
@@ -229,6 +257,15 @@ export default function SubmissionsScreen() {
                 </Text>
               </View>
               <Text style={styles.submissionTitle} numberOfLines={2}>{sub.title}</Text>
+              {sub.abstract ? (
+                <Text style={styles.submissionAbstract} numberOfLines={2}>{sub.abstract}</Text>
+              ) : null}
+              {sub.keywords ? (
+                <View style={styles.keywordsRow}>
+                  <Ionicons name="pricetag-outline" size={12} color={Colors.textLight} />
+                  <Text style={styles.keywordsText} numberOfLines={1}>{sub.keywords}</Text>
+                </View>
+              ) : null}
               <View style={styles.submissionMeta}>
                 <View style={styles.metaItem}>
                   <Ionicons name="list-outline" size={14} color={Colors.textSecondary} />
@@ -285,6 +322,7 @@ const styles = StyleSheet.create({
   },
   formTitle: { fontSize: 17, fontFamily: "Poppins_700Bold", color: Colors.text, marginBottom: 16 },
   formLabel: { fontSize: 13, fontFamily: "Poppins_600SemiBold", color: Colors.textSecondary, marginBottom: 8, marginTop: 12 },
+  formHint: { fontSize: 11, fontFamily: "Poppins_400Regular", color: Colors.textLight, marginTop: 4 },
   formInput: {
     backgroundColor: Colors.lightGray,
     borderRadius: 12,
@@ -295,7 +333,11 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontFamily: "Poppins_400Regular",
     color: Colors.text,
-    minHeight: 64,
+    minHeight: 48,
+  },
+  formInputTall: {
+    minHeight: 110,
+    textAlignVertical: "top",
   },
   axisOption: {
     flexDirection: "row",
@@ -371,10 +413,13 @@ const styles = StyleSheet.create({
   submissionTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 8 },
   badge: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20 },
   badgeDot: { width: 6, height: 6, borderRadius: 3 },
-  badgeText: { fontSize: 12, fontFamily: "Poppins_600SemiBold" },
+  badgeText: { fontSize: 11, fontFamily: "Poppins_600SemiBold" },
   submissionDate: { fontSize: 12, fontFamily: "Poppins_400Regular", color: Colors.textLight },
-  submissionTitle: { fontSize: 15, fontFamily: "Poppins_600SemiBold", color: Colors.text, marginBottom: 8, paddingRight: 20 },
-  submissionMeta: { flexDirection: "row", gap: 14, flexWrap: "wrap" },
+  submissionTitle: { fontSize: 15, fontFamily: "Poppins_600SemiBold", color: Colors.text, marginBottom: 4, paddingRight: 20 },
+  submissionAbstract: { fontSize: 12, fontFamily: "Poppins_400Regular", color: Colors.textSecondary, lineHeight: 18, marginBottom: 4 },
+  keywordsRow: { flexDirection: "row", alignItems: "center", gap: 4, marginBottom: 8 },
+  keywordsText: { fontSize: 11, fontFamily: "Poppins_400Regular", color: Colors.textLight, flex: 1, fontStyle: "italic" },
+  submissionMeta: { flexDirection: "row", gap: 14, flexWrap: "wrap", marginTop: 4 },
   metaItem: { flexDirection: "row", alignItems: "center", gap: 4 },
   metaText: { fontSize: 12, fontFamily: "Poppins_400Regular", color: Colors.textSecondary },
   submissionAuthor: { fontSize: 12, fontFamily: "Poppins_400Regular", color: Colors.textLight, marginTop: 4 },

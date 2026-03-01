@@ -25,6 +25,18 @@ const PAYMENT_STATUS: Record<string, { label: string; color: string }> = {
   exempt: { label: "Isento", color: Colors.textSecondary },
 };
 
+function buildQrValue(user: any): string {
+  if (!user?.qr_code) return "sem-qr";
+  return JSON.stringify({
+    id: user.qr_code,
+    nome: user.full_name,
+    categoria: CATEGORY_LABELS[user.category] || user.category,
+    tipo: `${CATEGORY_LABELS[user.category] || user.category} (${user.affiliation === "urnm" ? "URNM" : "Externo"})`,
+    instituicao: user.institution || (user.affiliation === "urnm" ? "Universidade Rainha N'Jinga Mbande" : "Instituição Externa"),
+    congresso: "CSA URNM 2026",
+  });
+}
+
 function InfoRow({ icon, label, value }: { icon: string; label: string; value: string }) {
   return (
     <View style={styles.infoRow}>
@@ -38,7 +50,7 @@ function InfoRow({ icon, label, value }: { icon: string; label: string; value: s
 }
 
 export default function ProfileScreen() {
-  const { user, logout, refreshUser } = useAuth();
+  const { user, logout } = useAuth();
   const insets = useSafeAreaInsets();
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const bottomPad = Platform.OS === "web" ? 34 : insets.bottom;
@@ -67,6 +79,8 @@ export default function ProfileScreen() {
   if (!user) return null;
 
   const payStatus = PAYMENT_STATUS[user.payment_status] || PAYMENT_STATUS.pending;
+  const qrValue = buildQrValue(user);
+  const typeLabel = `${CATEGORY_LABELS[user.category] || user.category} (${user.affiliation === "urnm" ? "URNM" : "Externo"})`;
 
   return (
     <View style={[styles.container, { paddingTop: topPad }]}>
@@ -99,7 +113,8 @@ export default function ProfileScreen() {
         <View style={styles.qrCard}>
           <View style={styles.qrLeft}>
             <Text style={styles.qrTitle}>Código QR</Text>
-            <Text style={styles.qrSub}>Apresente para credenciamento</Text>
+            <Text style={styles.qrSub}>Apresente na entrada do congresso</Text>
+            <Text style={styles.qrType}>{typeLabel}</Text>
             <Pressable
               style={({ pressed }) => [styles.qrBtn, pressed && { opacity: 0.8 }]}
               onPress={() => setShowQrModal(true)}
@@ -110,7 +125,7 @@ export default function ProfileScreen() {
           </View>
           <View style={styles.qrPreview}>
             {user.qr_code ? (
-              <QRCode value={user.qr_code} size={80} color={Colors.primary} />
+              <QRCode value={qrValue} size={80} color={Colors.primary} />
             ) : (
               <View style={styles.qrPlaceholder}>
                 <Ionicons name="qr-code-outline" size={40} color={Colors.mediumGray} />
@@ -144,8 +159,8 @@ export default function ProfileScreen() {
           <InfoRow icon="mail-outline" label="Email" value={user.email} />
           <InfoRow icon="school-outline" label="Grau Académico" value={user.academic_degree || "—"} />
           <InfoRow icon="people-outline" label="Categoria" value={CATEGORY_LABELS[user.category] || user.category} />
-          <InfoRow icon="business-outline" label="Filiação" value={user.affiliation === "urnm" ? "URNM" : "Externo"} />
-          <InfoRow icon="location-outline" label="Instituição" value={user.institution || "—"} />
+          <InfoRow icon="ribbon-outline" label="Tipo" value={typeLabel} />
+          <InfoRow icon="business-outline" label="Instituição de Origem" value={user.institution || (user.affiliation === "urnm" ? "Universidade Rainha N'Jinga Mbande" : "—")} />
           <InfoRow icon="calendar-outline" label="Registado em" value={new Date(user.created_at).toLocaleDateString("pt-PT")} />
           {user.is_checked_in && (
             <View style={styles.checkedInBadge}>
@@ -154,6 +169,17 @@ export default function ProfileScreen() {
             </View>
           )}
         </View>
+
+        {user.role === "admin" && (
+          <Pressable
+            style={({ pressed }) => [styles.adminBtn, pressed && { opacity: 0.85 }]}
+            onPress={() => router.push("/admin-participants")}
+          >
+            <Ionicons name="people-outline" size={20} color={Colors.white} />
+            <Text style={styles.adminBtnText}>Lista de Participantes (QR)</Text>
+            <Ionicons name="chevron-forward" size={18} color={Colors.white} />
+          </Pressable>
+        )}
 
         <Pressable
           style={({ pressed }) => [styles.logoutBtn, pressed && { opacity: 0.85 }]}
@@ -181,19 +207,39 @@ export default function ProfileScreen() {
               </Pressable>
             </View>
             <Text style={styles.modalName}>{user.full_name}</Text>
-            <Text style={styles.modalCategory}>{CATEGORY_LABELS[user.category]} · {user.affiliation.toUpperCase()}</Text>
+            <Text style={styles.modalCategory}>{typeLabel}</Text>
+            <Text style={styles.modalInstitution}>
+              {user.institution || (user.affiliation === "urnm" ? "Universidade Rainha N'Jinga Mbande" : "Instituição Externa")}
+            </Text>
             <View style={styles.qrLarge}>
               {user.qr_code ? (
-                <QRCode value={user.qr_code} size={220} color={Colors.primary} />
+                <QRCode value={qrValue} size={220} color={Colors.primary} />
               ) : (
                 <Ionicons name="qr-code-outline" size={100} color={Colors.mediumGray} />
               )}
             </View>
-            <Text style={styles.qrCode}>{user.qr_code}</Text>
+            <View style={styles.qrDetailsBox}>
+              <QrDetailRow label="Nome" value={user.full_name} />
+              <QrDetailRow label="Categoria" value={CATEGORY_LABELS[user.category] || user.category} />
+              <QrDetailRow label="Tipo" value={typeLabel} />
+              <QrDetailRow
+                label="Instituição"
+                value={user.institution || (user.affiliation === "urnm" ? "Universidade Rainha N'Jinga Mbande" : "Instituição Externa")}
+              />
+            </View>
             <Text style={styles.qrNote}>Apresente este código na entrada do congresso</Text>
           </View>
         </View>
       </Modal>
+    </View>
+  );
+}
+
+function QrDetailRow({ label, value }: { label: string; value: string }) {
+  return (
+    <View style={styles.qrDetailRow}>
+      <Text style={styles.qrDetailLabel}>{label}:</Text>
+      <Text style={styles.qrDetailValue} numberOfLines={2}>{value}</Text>
     </View>
   );
 }
@@ -234,9 +280,10 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 2,
   },
-  qrLeft: { gap: 4 },
+  qrLeft: { gap: 4, flex: 1 },
   qrTitle: { fontSize: 16, fontFamily: "Poppins_700Bold", color: Colors.text },
   qrSub: { fontSize: 12, fontFamily: "Poppins_400Regular", color: Colors.textSecondary },
+  qrType: { fontSize: 11, fontFamily: "Poppins_600SemiBold", color: Colors.accent },
   qrBtn: {
     flexDirection: "row",
     alignItems: "center",
@@ -246,6 +293,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     borderRadius: 20,
     backgroundColor: Colors.primary + "12",
+    alignSelf: "flex-start",
   },
   qrBtnText: { fontSize: 12, fontFamily: "Poppins_600SemiBold", color: Colors.primary },
   qrPreview: { padding: 8, borderRadius: 10, backgroundColor: Colors.offWhite },
@@ -310,6 +358,16 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   checkedInText: { fontSize: 14, fontFamily: "Poppins_600SemiBold", color: Colors.success },
+  adminBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderRadius: 14,
+    backgroundColor: Colors.primary,
+  },
+  adminBtnText: { flex: 1, fontSize: 14, fontFamily: "Poppins_600SemiBold", color: Colors.white },
   logoutBtn: {
     flexDirection: "row",
     alignItems: "center",
@@ -344,15 +402,25 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   modalTitle: { fontSize: 18, fontFamily: "Poppins_700Bold", color: Colors.text },
-  modalName: { fontSize: 18, fontFamily: "Poppins_600SemiBold", color: Colors.text },
-  modalCategory: { fontSize: 13, fontFamily: "Poppins_400Regular", color: Colors.textSecondary },
+  modalName: { fontSize: 18, fontFamily: "Poppins_700Bold", color: Colors.text },
+  modalCategory: { fontSize: 13, fontFamily: "Poppins_600SemiBold", color: Colors.accent },
+  modalInstitution: { fontSize: 12, fontFamily: "Poppins_400Regular", color: Colors.textSecondary, textAlign: "center" },
   qrLarge: {
     padding: 20,
     backgroundColor: Colors.offWhite,
     borderRadius: 16,
     marginVertical: 8,
   },
-  qrCode: { fontSize: 10, fontFamily: "Poppins_400Regular", color: Colors.textLight, letterSpacing: 1 },
+  qrDetailsBox: {
+    width: "100%",
+    backgroundColor: Colors.lightGray,
+    borderRadius: 12,
+    padding: 12,
+    gap: 6,
+  },
+  qrDetailRow: { flexDirection: "row", gap: 8 },
+  qrDetailLabel: { fontSize: 12, fontFamily: "Poppins_600SemiBold", color: Colors.textSecondary, minWidth: 80 },
+  qrDetailValue: { flex: 1, fontSize: 12, fontFamily: "Poppins_400Regular", color: Colors.text },
   qrNote: {
     fontSize: 13,
     fontFamily: "Poppins_400Regular",

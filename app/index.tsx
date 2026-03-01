@@ -1,22 +1,20 @@
 import React, { useEffect, useRef } from "react";
-import { View, Text, StyleSheet, Animated, Platform } from "react-native";
+import { View, Text, StyleSheet, Animated, Platform, Image } from "react-native";
 import { router } from "expo-router";
 import { useAuth } from "@/contexts/AuthContext";
 import { Colors } from "@/constants/colors";
-import { LinearGradient } from "expo-linear-gradient";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Ionicons } from "@expo/vector-icons";
 
 export default function SplashRedirect() {
   const { user, isLoading } = useAuth();
   const fadeAnim = useRef(new Animated.Value(0)).current;
-  const scaleAnim = useRef(new Animated.Value(0.8)).current;
-  const insets = useSafeAreaInsets();
+  const scaleAnim = useRef(new Animated.Value(0.85)).current;
+  const progressAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     Animated.parallel([
-      Animated.timing(fadeAnim, { toValue: 1, duration: 1000, useNativeDriver: true }),
+      Animated.timing(fadeAnim, { toValue: 1, duration: 800, useNativeDriver: true }),
       Animated.spring(scaleAnim, { toValue: 1, tension: 80, friction: 8, useNativeDriver: true }),
+      Animated.timing(progressAnim, { toValue: 1, duration: 2500, useNativeDriver: false }),
     ]).start();
   }, []);
 
@@ -28,104 +26,109 @@ export default function SplashRedirect() {
         } else {
           router.replace("/(auth)/login");
         }
-      }, 2000);
+      }, 2800);
       return () => clearTimeout(timeout);
     }
   }, [isLoading, user]);
 
+  const progressWidth = progressAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: ["0%", "100%"],
+  });
+
   return (
-    <LinearGradient
-      colors={[Colors.primaryDark, Colors.primary, Colors.primaryLight]}
-      style={[styles.container, { paddingTop: insets.top + (Platform.OS === "web" ? 67 : 0), paddingBottom: insets.bottom + (Platform.OS === "web" ? 34 : 0) }]}
-      start={{ x: 0, y: 0 }}
-      end={{ x: 1, y: 1 }}
-    >
+    <View style={styles.container}>
       <Animated.View style={[styles.content, { opacity: fadeAnim, transform: [{ scale: scaleAnim }] }]}>
-        <View style={styles.iconContainer}>
-          <Ionicons name="school" size={64} color={Colors.accent} />
-        </View>
-        <Text style={styles.title}>URNM</Text>
-        <Text style={styles.subtitle}>CONGRESSO</Text>
-        <Text style={styles.tagline}>2026</Text>
+        <Image
+          source={require("../assets/images/icon.png")}
+          style={styles.logo}
+          resizeMode="contain"
+        />
+        <Text style={styles.universityName}>Universidade Rainha N'Jinga Mbande</Text>
+        <Text style={styles.subtitle}>Congresso Científico 2026</Text>
         <View style={styles.divider} />
-        <Text style={styles.description}>
-          Gestão de Eventos Académicos
-        </Text>
+        <Text style={styles.tagline}>Gestão de Eventos Académicos</Text>
       </Animated.View>
 
-      <Animated.View style={[styles.footer, { opacity: fadeAnim, paddingBottom: insets.bottom + 20 }]}>
-        <Text style={styles.footerText}>Universidade Rovuma do Norte de Moçambique</Text>
-      </Animated.View>
-    </LinearGradient>
+      <View style={styles.progressContainer}>
+        <View style={styles.progressBg}>
+          <Animated.View style={[styles.progressBar, { width: progressWidth }]} />
+        </View>
+        <Text style={styles.loadingText}>A carregar...</Text>
+      </View>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: "#FFFFFF",
     alignItems: "center",
     justifyContent: "center",
+    paddingHorizontal: 32,
+    paddingTop: Platform.OS === "web" ? 67 : 0,
+    paddingBottom: Platform.OS === "web" ? 34 : 0,
   },
   content: {
     alignItems: "center",
-    gap: 8,
-  },
-  iconContainer: {
-    width: 120,
-    height: 120,
-    borderRadius: 30,
-    backgroundColor: "rgba(255,255,255,0.1)",
-    alignItems: "center",
+    gap: 12,
+    flex: 1,
     justifyContent: "center",
-    marginBottom: 16,
-    borderWidth: 2,
-    borderColor: Colors.accent,
   },
-  title: {
-    fontSize: 48,
+  logo: {
+    width: 200,
+    height: 200,
+    marginBottom: 8,
+  },
+  universityName: {
+    fontSize: 16,
     fontFamily: "Poppins_700Bold",
-    color: Colors.white,
-    letterSpacing: 8,
+    color: Colors.primary,
+    textAlign: "center",
+    letterSpacing: 0.3,
   },
   subtitle: {
-    fontSize: 18,
+    fontSize: 14,
     fontFamily: "Poppins_600SemiBold",
     color: Colors.accent,
-    letterSpacing: 12,
-  },
-  tagline: {
-    fontSize: 36,
-    fontFamily: "Poppins_700Bold",
-    color: "rgba(255,255,255,0.9)",
-    letterSpacing: 4,
+    textAlign: "center",
   },
   divider: {
-    width: 60,
+    width: 50,
     height: 2,
     backgroundColor: Colors.accent,
     borderRadius: 1,
-    marginVertical: 12,
+    marginVertical: 4,
   },
-  description: {
-    fontSize: 14,
+  tagline: {
+    fontSize: 12,
     fontFamily: "Poppins_400Regular",
-    color: "rgba(255,255,255,0.7)",
-    letterSpacing: 1,
+    color: Colors.textSecondary,
+    letterSpacing: 0.5,
     textTransform: "uppercase",
   },
-  footer: {
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
+  progressContainer: {
+    width: "100%",
+    paddingBottom: 60,
     alignItems: "center",
-    paddingBottom: 40,
+    gap: 10,
   },
-  footerText: {
-    fontSize: 11,
+  progressBg: {
+    width: "80%",
+    height: 4,
+    backgroundColor: Colors.lightGray,
+    borderRadius: 2,
+    overflow: "hidden",
+  },
+  progressBar: {
+    height: "100%",
+    backgroundColor: Colors.primary,
+    borderRadius: 2,
+  },
+  loadingText: {
+    fontSize: 12,
     fontFamily: "Poppins_400Regular",
-    color: "rgba(255,255,255,0.5)",
-    textAlign: "center",
-    paddingHorizontal: 20,
+    color: Colors.textLight,
   },
 });

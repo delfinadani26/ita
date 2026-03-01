@@ -116,11 +116,18 @@ export default function AdminScreen() {
         <Text style={styles.headerTitle}>
           {user?.role === "admin" ? "Painel de Gestão" : "Revisão"}
         </Text>
-        {user?.role === "admin" && (
-          <Pressable onPress={() => router.push("/scanner")} style={styles.scanBtn}>
-            <Ionicons name="qr-code-outline" size={22} color={Colors.primary} />
-          </Pressable>
-        )}
+        <View style={styles.headerActions}>
+          {user?.role === "admin" && (
+            <Pressable onPress={() => router.push("/admin-participants")} style={styles.scanBtn}>
+              <Ionicons name="people-outline" size={22} color={Colors.primary} />
+            </Pressable>
+          )}
+          {user?.role === "admin" && (
+            <Pressable onPress={() => router.push("/scanner")} style={styles.scanBtn}>
+              <Ionicons name="qr-code-outline" size={22} color={Colors.primary} />
+            </Pressable>
+          )}
+        </View>
       </View>
 
       <View style={styles.tabBar}>
@@ -397,6 +404,7 @@ const styles = StyleSheet.create({
     borderBottomColor: Colors.border,
   },
   headerTitle: { fontSize: 22, fontFamily: "Poppins_700Bold", color: Colors.text },
+  headerActions: { flexDirection: "row", gap: 4 },
   scanBtn: { padding: 8 },
   tabBar: {
     flexDirection: "row",
