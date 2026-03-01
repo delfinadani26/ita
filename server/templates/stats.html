@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CSA 2026 - Estatísticas Externas</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f7f6; color: #333; margin: 0; padding: 20px; display: flex; flex-direction: column; align-items: center; }
+        .container { background: white; padding: 30px; border-radius: 12px; shadow: 0 4px 6px rgba(0,0,0,0.1); width: 100%; max-width: 600px; text-align: center; }
+        h1 { color: #004d40; margin-bottom: 10px; }
+        .stat-box { font-size: 48px; font-weight: bold; color: #00796b; margin: 20px 0; }
+        .label { font-size: 18px; color: #666; }
+        .refresh { margin-top: 20px; font-size: 14px; color: #999; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>CSA 2026</h1>
+        <div class="label">Total de Inscritos</div>
+        <div id="total" class="stat-box">Carregando...</div>
+        <p>Acompanhamento em tempo real das inscrições para o Congresso sobre Sistemas Alimentares.</p>
+        <div class="refresh">Atualiza automaticamente a cada 30 segundos</div>
+    </div>
+    <script>
+        async function updateStats() {
+            try {
+                const res = await fetch('/api/public/stats');
+                const data = await res.json();
+                document.getElementById('total').textContent = data.total;
+            } catch (e) {
+                document.getElementById('total').textContent = 'Erro';
+            }
+        }
+        updateStats();
+        setInterval(updateStats, 30000);
+    </script>
+</body>
+</html>

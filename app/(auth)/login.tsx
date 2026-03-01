@@ -52,7 +52,7 @@ export default function LoginScreen() {
       >
         <View style={styles.header}>
           <View style={styles.logoBox}>
-            <Ionicons name="school" size={40} color={Colors.accent} />
+            <Text style={{ fontSize: 24, fontWeight: 'bold', color: Colors.accent }}>CSA</Text>
           </View>
           <Text style={styles.title}>Bem-vindo</Text>
           <Text style={styles.subtitle}>Inicie sessão para continuar</Text>
@@ -120,11 +120,6 @@ export default function LoginScreen() {
             <Pressable onPress={() => router.push("/(auth)/register")}>
               <Text style={styles.registerLink}>Registar</Text>
             </Pressable>
-          </View>
-
-          <View style={styles.adminHint}>
-            <Ionicons name="information-circle-outline" size={14} color={Colors.textLight} />
-            <Text style={styles.adminHintText}>Admin: admin@urnm.ao / admin123</Text>
           </View>
         </View>
       </ScrollView>

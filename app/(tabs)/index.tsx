@@ -93,6 +93,15 @@ function AccessStatusCard({ user }: { user: any }) {
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
+  const [showWelcome, setShowWelcome] = React.useState(false);
+
+  React.useEffect(() => {
+    if (user) {
+      setShowWelcome(true);
+      const timer = setTimeout(() => setShowWelcome(false), 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [user?.id]);
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const bottomPad = Platform.OS === "web" ? 34 : insets.bottom;
 
@@ -124,6 +133,18 @@ export default function HomeScreen() {
       showsVerticalScrollIndicator={false}
       contentInsetAdjustmentBehavior="automatic"
     >
+      {showWelcome && (
+        <View style={styles.welcomeToast}>
+          <LinearGradient
+            colors={[Colors.success, Colors.success + "DD"]}
+            style={styles.welcomeToastGrad}
+          >
+            <Ionicons name="person-circle-outline" size={24} color={Colors.white} />
+            <Text style={styles.welcomeToastText}>Bem-vindo de volta, {user?.full_name}!</Text>
+          </LinearGradient>
+        </View>
+      )}
+
       <LinearGradient
         colors={[Colors.primaryDark, Colors.primary]}
         style={styles.heroBanner}
@@ -432,4 +453,29 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   scannerBtnText: { fontSize: 15, fontFamily: "Poppins_600SemiBold", color: Colors.white },
+  welcomeToast: {
+    position: "absolute",
+    top: 20,
+    left: 20,
+    right: 20,
+    zIndex: 1000,
+    borderRadius: 12,
+    overflow: "hidden",
+    elevation: 5,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 10,
+  },
+  welcomeToastGrad: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 16,
+    gap: 12,
+  },
+  welcomeToastText: {
+    color: Colors.white,
+    fontFamily: "Poppins_600SemiBold",
+    fontSize: 14,
+  },
 });

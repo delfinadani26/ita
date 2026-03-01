@@ -167,6 +167,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
     return res.json(stats);
   });
 
+  app.get("/api/public/stats", async (req: Request, res: Response) => {
+    const stats = await db.getUserStats();
+    const total = Object.values(stats).reduce((a, b) => a + b, 0);
+    return res.json({ total });
+  });
+
+  app.get("/stats", (req: Request, res: Response) => {
+    res.sendFile(path.join(process.cwd(), "server/templates/stats.html"));
+  });
+
   app.get("/api/stats/financial", requireAuth, async (req: Request, res: Response) => {
     const me = await db.getUserById(req.session.userId!);
     if (!me || me.role !== "admin") return res.status(403).json({ message: "Sem permissão" });
