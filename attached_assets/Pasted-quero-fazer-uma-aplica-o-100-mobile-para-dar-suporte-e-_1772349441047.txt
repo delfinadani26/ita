@@ -1,0 +1,37 @@
+quero fazer uma aplicação 100% mobile para  dar suporte e fazer a gestão do evento onde os participantes possam 
+fazer as suas inscrições, pagamentos (após aprovação do artigo/apresentação ou  comunicações científicas), 
+submissão e revisão de comunicações científicas, bem como o credenciamento e controlo de 
+acesso dos participantes.  
+
+• Sistema de credenciamento com código QR ou código de barras, ou seja terá uma área que vai enquanto os participantes
+vão se escrevendo e gerando o código qr em suas áreas ou perfil esta área vai guardando para depois permitir os participantes
+apontarem (porque vai ter uma folha A4 imprimido pelo sistema com código Qr/Barra do sistema com todos os registros para os
+participantes saberem seu registro lugar e seu nome na lista) para ver seu registro
+ 
+
+• O sistema deve fazer Registo e autenticação de utilizadores durante este processo deve ter o grau academico, categoria, a
+instituição de origem e o registro de ter todas as validações. ao se registrar deve identifica a categoria que se escreve:
+Docentes/Investigador, estudantes, outros e prelectores (se Faz parte da URNM/Externo) em função disso ao logar deve ir ao seu perfil
+o sistema deve ter estes três perfils e um perfil de super administrador. sobre 0s perfil deve ter também perfil de AVALIADR UM MACRO 
+que VAI APROVAR as apresentações dos participantes e também dEPOIS DA APROVAÇÃO O CANDIDATO VAI RESPONDER O QUE SUBMETEU logo tem que 
+ter uma área de mini chat no perfil dos particpantes em tempo real
+
+•Para Submissão e revisão de comunicações do artigo/apresentação, deve estar registrado, ao submter vai ter uma área para 
+subir o PDF/DOCX com o titulo, ao submter ele vai escolher os eixos tématicos:
+1-.	Ensino e Investigação aplicada ao sector agro-alimentar
+2-.	Contribuição sector agro na economia nacional
+3-.	Integração empresarial na criação de políticas de desenvolvimento do sector agro em Angola
+
+• O sistema deve contar dinamicamente o número de participantes por categoria para ver quantos se escreverem
+• Sobre Relatórios financeiros, deve saber quantos foram aprovados, e pagaram
+• Como informação na parte principal da aplicação deve ter informação sobre as rubricas:
+Docentes/investigadores	Estudantes	Outros
+URNM	Externo	URNM	Externo	URNM	Externo
+Espectadores	5.000	7.000	3.000	4.000	5.000	10.000
+Prelectores (autores)	20.000
+
+• Como informação na parte principal da aplicação deve ter informação sobre. O CONGRESSO VAI DE 01 DE MARÇO DE 2026
+ ATÉ DIA 31 DE ABRIL DE 2026
+
+
+o sistema deve ter um splash screen
