@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useMemo, ReactNode } from "react";
-import { apiRequest, getApiUrl } from "@/lib/query-client";
-import { fetch } from "expo/fetch";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { authService } from "@/lib/supabase-service";
 
 export interface AuthUser {
   id: number;
@@ -12,10 +12,12 @@ export interface AuthUser {
   institution?: string;
   role: "participant" | "avaliador" | "admin";
   qr_code?: string;
-  payment_status: "pending" | "approved" | "paid" | "exempt";
+  payment_status: "pending" | "approved" | "paid" | "exempt" | "rejected";
   payment_amount?: number;
   is_checked_in: boolean;
   created_at: string;
+  approved_at?: string;
+  rejection_reason?: string;
 }
 
 interface AuthContextValue {
@@ -46,16 +48,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const refreshUser = async () => {
     try {
-      const baseUrl = getApiUrl();
-      const url = new URL("/api/auth/me", baseUrl);
-      const res = await fetch(url.toString(), { credentials: "include" });
-      if (res.ok) {
-        const data = await res.json();
-        setUser(data);
-      } else {
-        setUser(null);
+      // Buscar dados da sessão local (se existirem)
+      const storedUser = await AsyncStorage.getItem("user_session");
+      if (storedUser) {
+        setUser(JSON.parse(storedUser));
       }
-    } catch {
+    } catch (error: any) {
+      console.warn("Failed to refresh user:", error?.message);
       setUser(null);
     }
   };
@@ -65,35 +64,81 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const login = async (email: string, password: string) => {
-    const res = await apiRequest("POST", "/api/auth/login", { email, password });
-    const data = await res.json();
-    setUser(data);
+    try {
+      // ✅ Fazer login com RPC Supabase (sem usar Auth)
+      const result = await authService.login(email, password);
+
+      if (result?.error) {
+        throw new Error(result.error);
+      }
+
+      // Armazenar sessão localmente
+      await AsyncStorage.setItem("user_session", JSON.stringify(result));
+      await AsyncStorage.setItem("current_user_id", result.id.toString());
+      
+      setUser(result);
+    } catch (error: any) {
+      throw new Error(error.message || "Erro ao fazer login");
+    }
   };
 
   const register = async (data: RegisterData) => {
-    const res = await apiRequest("POST", "/api/auth/register", data);
-    const u = await res.json();
-    setUser(u);
+    try {
+      // ✅ Registar novo participante
+      const result = await authService.register({
+        full_name: data.full_name,
+        email: data.email,
+        password: data.password,
+        academic_degree: data.academic_degree,
+        category: data.category,
+        affiliation: data.affiliation,
+        institution: data.institution,
+        role: data.role || "participant",
+      });
+
+      if (result?.error) {
+        throw new Error(result.error);
+      }
+
+      // NÃO fazer auto-login após registro
+      // Usuário precisa esperar aprovação do admin
+      setUser(null);
+      await AsyncStorage.removeItem("user_session");
+    } catch (error: any) {
+      throw new Error(error.message || "Erro ao registar utilizador");
+    }
   };
 
   const logout = async () => {
     try {
-      await apiRequest("POST", "/api/auth/logout", {});
-    } catch {
-    } finally {
       setUser(null);
+      await AsyncStorage.removeItem("user_session");
+      await AsyncStorage.removeItem("current_user_id");
+    } catch (error: any) {
+      console.error("Logout error:", error);
     }
   };
 
-  const value = useMemo(() => ({
-    user, isLoading, login, register, logout, refreshUser
-  }), [user, isLoading]);
+  const value: AuthContextValue = {
+    user,
+    isLoading,
+    login,
+    register,
+    logout,
+    refreshUser,
+  };
 
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+  return (
+    <AuthContext.Provider value={value}>
+      {children}
+    </AuthContext.Provider>
+  );
 }
 
-export function useAuth() {
+export function useAuth(): AuthContextValue {
   const context = useContext(AuthContext);
-  if (!context) throw new Error("useAuth must be used within AuthProvider");
+  if (!context) {
+    throw new Error("useAuth must be used within AuthProvider");
+  }
   return context;
 }

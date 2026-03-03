@@ -1,0 +1,218 @@
+/**
+ * EXEMPLOS DE IMPLEMENTAÇÃO DE REALTIME
+ * 
+ * 1. MODO SIMPLES - com callback genérico
+ * 2. MODO PROFISSIONAL - com callbacks específicos
+ * 3. MODO AVANÇADO - com transformação de estado
+ */
+
+import { useRealtimeSubscription, useRealtime, useRealtimeState } from "@/lib/useRealtimeSubscription";
+
+// ============================================
+// 1. MODO SIMPLES - Tela de Mensagens
+// ============================================
+export function MessagesScreenSimple() {
+  const [messages, setMessages] = useState([]);
+
+  // Subscrever a qualquer mudança na tabela
+  useRealtimeSubscription({
+    table: "messages",
+    onPayload: (payload) => {
+      console.log("Mudança em messages:", payload);
+      // Aqui você pode recarregar a lista
+      loadMessages();
+    },
+  });
+
+  return <View>{/* Seu conteúdo */}</View>;
+}
+
+// ============================================
+// 2. MODO PROFISSIONAL - Com callbacks específicos
+// ============================================
+export function SubmissionsScreen() {
+  const [submissions, setSubmissions] = useState([]);
+
+  useRealtimeSubscription({
+    table: "submissions",
+    
+    // Nova submissão foi criada
+    onInsert: (newSubmission) => {
+      console.log("Nova submissão:", newSubmission.title);
+      setSubmissions((prev) => [...prev, newSubmission]);
+    },
+    
+    // Submissão foi atualizada (ex: status mudou)
+    onUpdate: (updatedSubmission) => {
+      console.log("Submissão atualizada:", updatedSubmission.id);
+      setSubmissions((prev) =>
+        prev.map((s) => (s.id === updatedSubmission.id ? updatedSubmission : s))
+      );
+    },
+    
+    // Submissão foi deletada
+    onDelete: (deletedSubmission) => {
+      console.log("Submissão deletada:", deletedSubmission.id);
+      setSubmissions((prev) => prev.filter((s) => s.id !== deletedSubmission.id));
+    },
+  });
+
+  return <View>{/* Seu conteúdo */}</View>;
+}
+
+// ============================================
+// 3. MODO AVANÇADO - Monitorar múltiplas tabelas
+// ============================================
+export function HomeScreen() {
+  const [programs, setPrograms] = useState([]);
+  const [messages, setMessages] = useState([]);
+  const [submissions, setSubmissions] = useState([]);
+
+  // Subscrever a múltiplas tabelas simultaneamente
+  useRealtime([
+    {
+      table: "congress_program",
+      onInsert: (newProgram) => {
+        setPrograms((prev) => [...prev, newProgram]);
+        // Notificar usuário de novo programa
+        showNotification("Novo programa adicionado!");
+      },
+      onUpdate: (updatedProgram) => {
+        setPrograms((prev) =>
+          prev.map((p) => (p.id === updatedProgram.id ? updatedProgram : p))
+        );
+      },
+    },
+    {
+      table: "messages",
+      onInsert: (newMessage) => {
+        setMessages((prev) => [...prev, newMessage]);
+        // Soar notificação de áudio
+        playNotificationSound();
+      },
+    },
+    {
+      table: "submissions",
+      onUpdate: (updatedSubmission) => {
+        // Apenas notificar mudanças de status
+        if (updatedSubmission.status) {
+          showNotification(
+            `Submissão ${updatedSubmission.id} agora está ${updatedSubmission.status}`
+          );
+        }
+        setSubmissions((prev) =>
+          prev.map((s) => (s.id === updatedSubmission.id ? updatedSubmission : s))
+        );
+      },
+    },
+  ]);
+
+  return <View>{/* Seu conteúdo */}</View>;
+}
+
+// ============================================
+// 4. IMPLEMENTAÇÃO MELHORADA - Program Screen
+// ============================================
+export function ProgramScreenOptimized() {
+  // Usar o hook para gerenciar estado + realtime automaticamente
+  const [program, setProgram] = useRealtimeState([], "congress_program", {
+    onInsert: (items, newItem) => {
+      console.log("✅ Novo programa adicionado em tempo real");
+      return [...items, newItem].sort(
+        (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
+      );
+    },
+    onUpdate: (items, updatedItem) => {
+      console.log("🔄 Programa atualizado em tempo real:", updatedItem.id);
+      return items.map((p) => (p.id === updatedItem.id ? updatedItem : p));
+    },
+    onDelete: (items, deletedItem) => {
+      console.log("🗑️ Programa deletado em tempo real:", deletedItem.id);
+      return items.filter((p) => p.id !== deletedItem.id);
+    },
+  });
+
+  useEffect(() => {
+    // Carregar dados iniciais
+    loadProgram();
+  }, []);
+
+  return (
+    <View>
+      {/* Lista de programas com atualizações em tempo real automáticas */}
+      {program.map((item) => (
+        <ProgramItem key={item.id} item={item} />
+      ))}
+    </View>
+  );
+}
+
+// ============================================
+// EXEMPLO COM NOTIFICAÇÕES
+// ============================================
+export function NotificationExample() {
+  useRealtimeSubscription({
+    table: "congress_program",
+    onInsert: (newProgram) => {
+      // Mostrar toast ou notificação
+      Alert.alert(
+        "🆕 Novo Programa",
+        `${newProgram.title} foi adicionado ao congresso!`
+      );
+    },
+    onUpdate: (updatedProgram) => {
+      if (updatedProgram.is_completed) {
+        Alert.alert(
+          "✅ Programa Concluído",
+          `${updatedProgram.title} foi marcado como concluído!`
+        );
+      }
+    },
+  });
+
+  return null;
+}
+
+// ============================================
+// IMPLEMENTAÇÃO COM FILTROS
+// ============================================
+export function FilteredRealtimeExample() {
+  const [userMessages, setUserMessages] = useState([]);
+  const userId = useAuth().user?.id;
+
+  useRealtimeSubscription({
+    table: "messages",
+    onInsert: (newMessage) => {
+      // Filtrar apenas mensagens para este usuário
+      if (newMessage.recipient_id === userId) {
+        setUserMessages((prev) => [...prev, newMessage]);
+        // Reproduzir som de notificação
+        playSound("notification.mp3");
+      }
+    },
+  });
+
+  return <View>{/* Seu conteúdo */}</View>;
+}
+
+// ============================================
+// EXEMPLO COM TRATAMENTO DE ERROS
+// ============================================
+export function RealtimeWithErrorHandling() {
+  const [connectionStatus, setConnectionStatus] = useState("connecting");
+
+  useRealtimeSubscription({
+    table: "congress_program",
+    onInsert: (item) => console.log("Inserido:", item),
+    onUpdate: (item) => console.log("Atualizado:", item),
+    onDelete: (item) => console.log("Deletado:", item),
+  });
+
+  return (
+    <View>
+      <Text>
+        Status: {connectionStatus === "connected" ? "🟢 Conectado" : "🟡 Conectando"}
+      </Text>
+    </View>
+  );
+}

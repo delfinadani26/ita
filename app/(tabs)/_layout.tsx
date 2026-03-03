@@ -17,7 +17,7 @@ function NativeTabLayout({ isAdmin, isAvaliador }: { isAdmin: boolean; isAvaliad
         <Label>Início</Label>
       </NativeTabs.Trigger>
       <NativeTabs.Trigger name="program">
-        <Icon sf={{ default: "calendar", selected: "calendar.fill" }} />
+        <Icon sf={{ default: "calendar", selected: "calendar.badge" }} />
         <Label>Programa</Label>
       </NativeTabs.Trigger>
       <NativeTabs.Trigger name="submissions">

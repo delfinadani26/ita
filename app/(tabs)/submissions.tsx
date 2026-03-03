@@ -10,7 +10,6 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { getApiUrl } from "@/lib/query-client";
 import { router } from "expo-router";
 import * as DocumentPicker from "expo-document-picker";
-import { fetch } from "expo/fetch";
 import { LinearGradient } from "expo-linear-gradient";
 
 const AXES = [
@@ -53,9 +52,57 @@ export default function SubmissionsScreen() {
   const [selectedAxis, setSelectedAxis] = useState(0);
   const [selectedFile, setSelectedFile] = useState<any>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
 
-  const { data: submissions = [], isLoading, refetch } = useQuery<any[]>({
+  const { data: submissions = [], isLoading, isFetching, refetch, error } = useQuery<any[], Error>({
     queryKey: ["/api/submissions"],
+    queryFn: async (): Promise<any[]> => {
+      const baseUrl = getApiUrl();
+      const url = new URL("/api/submissions", baseUrl);
+      console.log("📝 Carregando submissões...");
+      
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 15000); // 15s timeout
+        
+        try {
+          const res = await fetch(url.toString(), {
+            signal: controller.signal,
+          });
+          clearTimeout(timeoutId);
+          
+          if (res.status === 401) {
+            throw new Error("Não autenticado");
+          }
+          
+          if (!res.ok) {
+            const error = await res.text();
+            throw new Error(`Erro ${res.status}: ${error || res.statusText}`);
+          }
+          
+          const data = await res.json();
+          console.log("✅ Submissões carregadas:", data.length, "items");
+          return data;
+        } finally {
+          clearTimeout(timeoutId);
+        }
+      } catch (err: any) {
+        console.error("❌ Erro ao carregar submissões:", err.message);
+        throw err;
+      }
+    },
+    staleTime: 1000 * 60 * 5, // 5 minutos
+    gcTime: 1000 * 60 * 10, // 10 minutos
+    enabled: true,
+    retry: (failureCount, error: any) => {
+      // Não retry em erros de autenticação
+      if (error?.message?.includes("401")) return false;
+      // Máximo 1 retry para outros erros
+      return failureCount < 1;
+    },
+    refetchOnMount: false,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
   });
 
   const pickFile = async () => {
@@ -63,7 +110,19 @@ export default function SubmissionsScreen() {
       type: ["application/pdf", "application/msword", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"],
     });
     if (!result.canceled && result.assets?.[0]) {
-      setSelectedFile(result.assets[0]);
+      const file = result.assets[0];
+      const MAX_SIZE = 10 * 1024 * 1024; // 10MB
+      
+      // Validar tamanho do arquivo
+      if (file.size && file.size > MAX_SIZE) {
+        Alert.alert(
+          "Ficheiro muito grande",
+          `O ficheiro não pode exceder 10MB. Tamanho atual: ${(file.size / (1024 * 1024)).toFixed(2)}MB`
+        );
+        return;
+      }
+      
+      setSelectedFile(file);
     }
   };
 
@@ -72,47 +131,210 @@ export default function SubmissionsScreen() {
       Alert.alert("Erro", "O título é obrigatório");
       return;
     }
+    
+    if (!selectedFile) {
+      Alert.alert("Erro", "Selecione um ficheiro para submeter");
+      return;
+    }
+
     setSubmitting(true);
+    setUploadProgress(0);
+    
     try {
       const baseUrl = getApiUrl();
       const url = new URL("/api/submissions", baseUrl);
+      
+      console.log("\n📤 ========== SUBMISSÃO ==========");
+      console.log(`URL: ${url.toString()}`);
+      console.log(`Título: ${title.trim()}`);
+      console.log(`Eixo: ${selectedAxis + 1}`);
+      console.log(`Arquivo: ${selectedFile.name} (${selectedFile.size ? (selectedFile.size / 1024).toFixed(2) + "KB" : "tamanho desconhecido"})`);
 
+      // Validação final do tamanho
+      const MAX_SIZE = 10 * 1024 * 1024; // 10MB
+      if (selectedFile.size && selectedFile.size > MAX_SIZE) {
+        const sizeMB = (selectedFile.size / (1024 * 1024)).toFixed(2);
+        console.error(`❌ Ficheiro muito grande: ${sizeMB}MB > 10MB`);
+        Alert.alert(
+          "Ficheiro muito grande",
+          `O ficheiro não pode exceder 10MB. Tamanho atual: ${sizeMB}MB`
+        );
+        setSubmitting(false);
+        return;
+      }
+
+      // Validar extensão
+      const fileName = selectedFile.name.toLowerCase();
+      const validExts = [".pdf", ".doc", ".docx"];
+      const hasValidExt = validExts.some(ext => fileName.endsWith(ext));
+      
+      if (!hasValidExt) {
+        const ext = fileName.split('.').pop();
+        console.error(`❌ Tipo de arquivo não permitido: .${ext}`);
+        Alert.alert(
+          "Tipo de ficheiro não suportado",
+          `Apenas PDF, DOC e DOCX são suportados. Ficheiro: ${selectedFile.name}`
+        );
+        setSubmitting(false);
+        return;
+      }
+
+      // Construir FormData
       const formData = new FormData();
       formData.append("title", title.trim());
       formData.append("abstract", abstract.trim());
       formData.append("keywords", keywords.trim());
       formData.append("thematic_axis", String(selectedAxis + 1));
 
-      if (selectedFile) {
-        formData.append("file", {
-          uri: selectedFile.uri,
-          name: selectedFile.name,
-          type: selectedFile.mimeType || "application/octet-stream",
-        } as any);
+      // Detectar MIME type
+      let mimeType = selectedFile.mimeType || "application/octet-stream";
+      if (!selectedFile.mimeType) {
+        if (fileName.endsWith(".pdf")) {
+          mimeType = "application/pdf";
+        } else if (fileName.endsWith(".doc")) {
+          mimeType = "application/msword";
+        } else if (fileName.endsWith(".docx")) {
+          mimeType = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+        }
       }
 
-      const res = await fetch(url.toString(), {
-        method: "POST",
-        body: formData,
-        credentials: "include",
-      });
+      const file = {
+        uri: selectedFile.uri,
+        name: selectedFile.name,
+        type: mimeType,
+      };
+      
+      console.log(`📎 Arquivo: tipo=${file.type}`);
+      (formData as any).append("file", file);
 
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.message || "Erro ao submeter");
+      console.log("📨 Enviando formulário...");
+      
+      let res: Response | null = null;
+      let lastError: Error | null = null;
+      const MAX_RETRIES = 2;
+      let progressInterval: ReturnType<typeof setInterval> | null = null;
+      
+      try {
+        for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+          try {
+            // Inicia simulação de progresso só para essa tentativa
+            if (!progressInterval) {
+              let simulatedProgress = 10 + attempt * 15;
+              setUploadProgress(simulatedProgress);
+              
+              progressInterval = setInterval(() => {
+                setUploadProgress(prev => {
+                  const next = prev + Math.random() * 15;
+                  return next > 85 ? 85 : next; // Para em 85% até a resposta
+                });
+              }, 200);
+            }
+            
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 30000);
+            
+            console.log(`📤 Tentativa ${attempt + 1}/${MAX_RETRIES + 1}...`);
+            
+            res = await fetch(url.toString(), {
+              method: "POST",
+              body: formData as any,
+              signal: controller.signal,
+            });
+            
+            clearTimeout(timeoutId);
+            
+            if (progressInterval) {
+              clearInterval(progressInterval);
+              progressInterval = null;
+            }
+            
+            setUploadProgress(95);
+            console.log(`📬 Resposta recebida: ${res.status} ${res.statusText}`);
+            break; // Sucesso, sai do loop
+            
+          } catch (error: any) {
+            if (progressInterval) {
+              clearInterval(progressInterval);
+              progressInterval = null;
+            }
+            
+            lastError = error;
+            const isLastAttempt = attempt === MAX_RETRIES;
+            
+            if (!isLastAttempt) {
+              console.warn(`⚠️ Tentativa ${attempt + 1} falhou: ${error.message}. Retentando em ${2000 * (attempt + 1)}ms...`);
+              setUploadProgress(10 + (attempt + 1) * 15);
+              await new Promise(resolve => setTimeout(resolve, 2000 * (attempt + 1)));
+            } else {
+              console.error(`❌ Todas as ${MAX_RETRIES + 1} tentativas falharam.`);
+            }
+          }
+        }
+        
+        if (!res) {
+          throw new Error(lastError?.message || "Erro de conexão. Verifique sua internet e tente novamente.");
+        }
+
+        let responseData: any;
+        const contentType = res.headers.get("content-type");
+        
+        try {
+          if (contentType?.includes("application/json")) {
+            responseData = await res.json();
+          } else {
+            responseData = { message: res.statusText };
+          }
+        } catch (e) {
+          responseData = { message: res.statusText };
+        }
+
+        if (!res.ok) {
+          let errorMessage = responseData.message || `Erro ${res.status}`;
+          
+          if (res.status === 400) {
+            errorMessage = "Formulário incompleto. Verifique os campos obrigatórios.";
+          } else if (res.status === 413) {
+            errorMessage = "Ficheiro muito grande. Máximo 10MB.";
+          } else if (res.status === 500) {
+            errorMessage = "Erro no servidor. Tente novamente em alguns momentos.";
+          }
+          
+          console.error(`❌ Erro do servidor (${res.status}):`, responseData);
+          throw new Error(errorMessage);
+        }
+
+        console.log(`✅ Submissão bem-sucedida:`, responseData);
+        setUploadProgress(100);
+
+        await new Promise(resolve => setTimeout(resolve, 500));
+
+        queryClient.invalidateQueries({ queryKey: ["/api/submissions"] });
+        setShowForm(false);
+        setTitle("");
+        setAbstract("");
+        setKeywords("");
+        setSelectedAxis(0);
+        setSelectedFile(null);
+        setUploadProgress(0);
+        
+        Alert.alert(
+          "✅ Sucesso!",
+          "Sua apresentação foi submetida com sucesso!\\n\\nAguarde a análise e aprovação da comissão científica."
+        );
+      } catch (err: any) {
+        console.error(`❌ Erro na submissão: ${err.message}`);
+        console.error("================================\n");
+        Alert.alert("Erro", err.message || "Erro ao submeter apresentação");
+      } finally {
+        if (progressInterval) {
+          clearInterval(progressInterval);
+        }
+        setSubmitting(false);
+        setUploadProgress(0);
       }
-
-      queryClient.invalidateQueries({ queryKey: ["/api/submissions"] });
-      setShowForm(false);
-      setTitle("");
-      setAbstract("");
-      setKeywords("");
-      setSelectedAxis(0);
-      setSelectedFile(null);
-      Alert.alert("Sucesso", "Comunicação submetida com sucesso! Aguarde a aprovação.");
-    } catch (err: any) {
-      Alert.alert("Erro", err.message || "Erro ao submeter");
-    } finally {
+    } catch (error: any) {
+      console.error(`❌ Erro geral na submissão: ${error.message}`);
+      Alert.alert("Erro", error.message || "Erro ao submeter apresentação");
       setSubmitting(false);
     }
   };
@@ -141,17 +363,17 @@ export default function SubmissionsScreen() {
         style={styles.scroll}
         contentContainerStyle={[styles.scrollContent, { paddingBottom: bottomPad + 100 }]}
         showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl refreshing={isLoading} onRefresh={refetch} />}
+        refreshControl={<RefreshControl refreshing={isFetching && !isLoading} onRefresh={refetch} />}
         contentInsetAdjustmentBehavior="automatic"
       >
         {showForm && (
           <View style={styles.formCard}>
-            <Text style={styles.formTitle}>Nova Comunicação Científica</Text>
+            <Text style={styles.formTitle}>Nova Apresentação Científica</Text>
 
-            <Text style={styles.formLabel}>Título da Comunicação *</Text>
+            <Text style={styles.formLabel}>Título da Apresentação *</Text>
             <TextInput
               style={styles.formInput}
-              placeholder="Digite o título da sua comunicação"
+              placeholder="Digite o título da sua apresentação"
               placeholderTextColor={Colors.mediumGray}
               value={title}
               onChangeText={setTitle}
@@ -162,7 +384,7 @@ export default function SubmissionsScreen() {
             <Text style={styles.formLabel}>Resumo</Text>
             <TextInput
               style={[styles.formInput, styles.formInputTall]}
-              placeholder="Escreva o resumo da sua comunicação (máx. 300 palavras)"
+              placeholder="Escreva o resumo da sua apresentação (máx. 300 palavras)"
               placeholderTextColor={Colors.mediumGray}
               value={abstract}
               onChangeText={setAbstract}
@@ -198,6 +420,7 @@ export default function SubmissionsScreen() {
             ))}
 
             <Text style={styles.formLabel}>Ficheiro (PDF / DOCX)</Text>
+            <Text style={styles.fileLimitText}>Máx. 10MB</Text>
             <Pressable style={styles.filePickerBtn} onPress={pickFile}>
               <Ionicons name="cloud-upload-outline" size={24} color={Colors.primary} />
               <Text style={styles.filePickerText}>
@@ -205,12 +428,47 @@ export default function SubmissionsScreen() {
               </Text>
             </Pressable>
             {selectedFile && (
-              <View style={styles.fileInfo}>
-                <Ionicons name="document-outline" size={16} color={Colors.success} />
-                <Text style={styles.fileInfoText} numberOfLines={1}>{selectedFile.name}</Text>
-                <Pressable onPress={() => setSelectedFile(null)}>
-                  <Ionicons name="close-circle" size={16} color={Colors.danger} />
-                </Pressable>
+              <>
+                <View style={styles.fileInfo}>
+                  <Ionicons name="document-outline" size={16} color={Colors.success} />
+                  <Text style={styles.fileInfoText} numberOfLines={1}>{selectedFile.name}</Text>
+                  <Pressable onPress={() => {
+                    setSelectedFile(null);
+                    setUploadProgress(0);
+                  }}>
+                    <Ionicons name="close-circle" size={16} color={Colors.danger} />
+                  </Pressable>
+                </View>
+                <Text style={styles.fileSizeText}>
+                  Tamanho: {(selectedFile.size / (1024 * 1024)).toFixed(2)} MB
+                </Text>
+              </>
+            )}
+
+            {submitting && uploadProgress > 0 && (
+              <View style={styles.progressContainer}>
+                <View style={styles.progressBar}>
+                  <View 
+                    style={[
+                      styles.progressFill,
+                      { 
+                        width: `${uploadProgress}%`,
+                        backgroundColor: uploadProgress === 100 ? Colors.success : Colors.accent
+                      }
+                    ]} 
+                  />
+                </View>
+                <View style={styles.progressLabelRow}>
+                  <Text style={styles.progressText}>
+                    {uploadProgress === 100 
+                      ? "✅ Processando..." 
+                      : `${Math.round(uploadProgress)}% Enviando...`
+                    }
+                  </Text>
+                  {uploadProgress < 100 && (
+                    <Ionicons name="sync" size={14} color={Colors.accent} style={{ marginLeft: 8 }} />
+                  )}
+                </View>
               </View>
             )}
 
@@ -221,11 +479,14 @@ export default function SubmissionsScreen() {
             >
               <LinearGradient colors={[Colors.primary, Colors.primaryLight]} style={styles.submitBtnGrad}>
                 {submitting ? (
-                  <ActivityIndicator color={Colors.white} />
+                  <>
+                    <ActivityIndicator color={Colors.white} />
+                    <Text style={styles.submitBtnText}>Enviando {uploadProgress}%...</Text>
+                  </>
                 ) : (
                   <>
                     <Ionicons name="send-outline" size={18} color={Colors.white} />
-                    <Text style={styles.submitBtnText}>Submeter</Text>
+                    <Text style={styles.submitBtnText}>Submeter Apresentação</Text>
                   </>
                 )}
               </LinearGradient>
@@ -233,7 +494,7 @@ export default function SubmissionsScreen() {
           </View>
         )}
 
-        {isLoading ? (
+        {isLoading && !submitting ? (
           <View style={styles.emptyState}>
             <ActivityIndicator color={Colors.primary} size="large" />
           </View>
@@ -241,7 +502,7 @@ export default function SubmissionsScreen() {
           <View style={styles.emptyState}>
             <Ionicons name="document-text-outline" size={56} color={Colors.mediumGray} />
             <Text style={styles.emptyTitle}>Sem submissões</Text>
-            <Text style={styles.emptyText}>Submeta a sua primeira comunicação científica.</Text>
+            <Text style={styles.emptyText}>Submeta a sua primeira apresentação científica.</Text>
           </View>
         ) : (
           submissions.map((sub) => (
@@ -323,6 +584,7 @@ const styles = StyleSheet.create({
   formTitle: { fontSize: 17, fontFamily: "Poppins_700Bold", color: Colors.text, marginBottom: 16 },
   formLabel: { fontSize: 13, fontFamily: "Poppins_600SemiBold", color: Colors.textSecondary, marginBottom: 8, marginTop: 12 },
   formHint: { fontSize: 11, fontFamily: "Poppins_400Regular", color: Colors.textLight, marginTop: 4 },
+  fileLimitText: { fontSize: 11, fontFamily: "Poppins_400Regular", color: Colors.textLight, marginBottom: 8 },
   formInput: {
     backgroundColor: Colors.lightGray,
     borderRadius: 12,
@@ -387,6 +649,28 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   fileInfoText: { flex: 1, fontSize: 12, fontFamily: "Poppins_400Regular", color: Colors.success },
+  fileSizeText: { fontSize: 11, fontFamily: "Poppins_400Regular", color: Colors.textLight, marginTop: 4 },
+  progressContainer: { marginTop: 12, marginBottom: 12, gap: 6, padding: 12, backgroundColor: Colors.accent + "08", borderRadius: 12, borderLeftWidth: 4, borderLeftColor: Colors.accent },
+  progressBar: {
+    height: 6,
+    backgroundColor: Colors.lightGray,
+    borderRadius: 3,
+    overflow: "hidden",
+  },
+  progressFill: {
+    height: "100%",
+    backgroundColor: Colors.primary,
+  },
+  progressLabelRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  progressText: {
+    fontSize: 13,
+    fontFamily: "Poppins_600SemiBold",
+    color: Colors.primary,
+  },
   submitBtn: { marginTop: 16, borderRadius: 14, overflow: "hidden" },
   submitBtnGrad: {
     flexDirection: "row",

@@ -45,7 +45,25 @@ export default function ScannerScreen() {
       const result = await res.json();
       setResultModal(result);
     } catch (err: any) {
-      Alert.alert("Erro", err.message || "Código QR não reconhecido");
+      // ✅ TRATAMENTO DE ERROS ESPECÍFICOS
+      let errorTitle = "Erro";
+      let errorMsg = err.message || "Código QR não reconhecido";
+      
+      if (err.message?.includes("Participante ainda não foi aprovado")) {
+        errorTitle = "⚠️ Aprovação Pendente";
+        errorMsg = "Este participante ainda aguarda aprovação do administrador.";
+      } else if (err.message?.includes("foi rejeitado")) {
+        errorTitle = "❌ Inscrição Rejeitada";
+        errorMsg = "Este participante foi rejeitado e não pode fazer check-in.";
+      } else if (err.message?.includes("Código QR não encontrado")) {
+        errorTitle = "❌ QR não reconhecido";
+        errorMsg = "Este código QR não está registado no sistema.";
+      } else if (err.message?.includes("Sem permissão")) {
+        errorTitle = "❌ Sem Permissão";
+        errorMsg = "Apenas administradores podem fazer check-in.";
+      }
+      
+      Alert.alert(errorTitle, errorMsg);
       setScanned(false);
     } finally {
       setLoading(false);
@@ -133,17 +151,46 @@ export default function ScannerScreen() {
             {resultModal && (
               <>
                 <View style={[styles.resultIcon, {
-                  backgroundColor: resultModal.already_checked_in ? Colors.warning + "20" : Colors.success + "20"
+                  backgroundColor: (resultModal.already_checked_in || resultModal.can_checkin === false) 
+                    ? (resultModal.reason === "pending_approval" ? Colors.warning : Colors.danger) + "20" 
+                    : Colors.success + "20"
                 }]}>
                   <Ionicons
-                    name={resultModal.already_checked_in ? "warning-outline" : "checkmark-circle-outline"}
+                    name={resultModal.already_checked_in ? "warning-outline" : (resultModal.can_checkin === false ? "close-circle-outline" : "checkmark-circle-outline")}
                     size={48}
-                    color={resultModal.already_checked_in ? Colors.warning : Colors.success}
+                    color={resultModal.already_checked_in ? Colors.warning : (resultModal.can_checkin === false ? Colors.danger : Colors.success)}
                   />
                 </View>
                 <Text style={styles.resultTitle}>
-                  {resultModal.already_checked_in ? "Já fez check-in" : "Check-in realizado!"}
+                  {resultModal.already_checked_in ? "Já fez check-in" : (resultModal.can_checkin === false ? "Check-in bloqueado" : "Check-in realizado!")}
                 </Text>
+                
+                {resultModal.can_checkin === false && (
+                  <View style={[styles.blockReasonBox, {
+                    backgroundColor: resultModal.reason === "pending_approval" ? Colors.warning + "15" : Colors.danger + "15",
+                    borderColor: resultModal.reason === "pending_approval" ? Colors.warning : Colors.danger
+                  }]}>
+                    <Ionicons 
+                      name={resultModal.reason === "pending_approval" ? "alert-circle-outline" : "close-circle-outline"} 
+                      size={20} 
+                      color={resultModal.reason === "pending_approval" ? Colors.warning : Colors.danger}
+                    />
+                    <View style={styles.blockReasonText}>
+                      <Text style={[styles.blockReasonTitle, {
+                        color: resultModal.reason === "pending_approval" ? Colors.warning : Colors.danger
+                      }]}>
+                        {resultModal.reason === "pending_approval" ? "Aprovação Pendente" : 
+                         resultModal.reason === "rejected" ? "Inscrição Rejeitada" : "Acesso Bloqueado"}
+                      </Text>
+                      <Text style={styles.blockReasonMsg}>
+                        {resultModal.reason === "pending_approval" ? "Aguardando aprovação do administrador" :
+                         resultModal.reason === "rejected" ? "Não é elegível para o congresso" : 
+                         resultModal.message}
+                      </Text>
+                    </View>
+                  </View>
+                )}
+                
                 <View style={styles.resultUserCard}>
                   <View style={styles.resultAvatar}>
                     <Text style={styles.resultAvatarText}>
@@ -158,12 +205,19 @@ export default function ScannerScreen() {
                     </Text>
                     <Text style={styles.resultInstitution}>{resultModal.user?.institution}</Text>
                     <View style={[styles.payStatus, {
-                      backgroundColor: resultModal.user?.payment_status === "paid" ? Colors.success + "20" : Colors.warning + "20"
+                      backgroundColor: (resultModal.user?.payment_status === "paid" || resultModal.user?.payment_status === "exempt") 
+                        ? Colors.success + "20" 
+                        : (resultModal.user?.payment_status === "approved" ? Colors.info + "20" : Colors.warning + "20")
                     }]}>
                       <Text style={[styles.payStatusText, {
-                        color: resultModal.user?.payment_status === "paid" ? Colors.success : Colors.warning
+                        color: (resultModal.user?.payment_status === "paid" || resultModal.user?.payment_status === "exempt") 
+                          ? Colors.success 
+                          : (resultModal.user?.payment_status === "approved" ? Colors.info : Colors.warning)
                       }]}>
-                        {resultModal.user?.payment_status === "paid" ? "Pagamento confirmado" : "Pagamento pendente"}
+                        {resultModal.user?.payment_status === "paid" ? "✓ Pagamento confirmado" :
+                         resultModal.user?.payment_status === "approved" ? "⏳ Aprovado, falta pagar" :
+                         resultModal.user?.payment_status === "exempt" ? "✓ Isento de pagamento" :
+                         "❌ Pagamento pendente"}
                       </Text>
                     </View>
                   </View>
@@ -326,6 +380,28 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   payStatusText: { fontSize: 11, fontFamily: "Poppins_600SemiBold" },
+  blockReasonBox: {
+    width: "100%",
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 12,
+    padding: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  blockReasonText: {
+    flex: 1,
+    gap: 4,
+  },
+  blockReasonTitle: {
+    fontSize: 14,
+    fontFamily: "Poppins_600SemiBold",
+  },
+  blockReasonMsg: {
+    fontSize: 12,
+    fontFamily: "Poppins_400Regular",
+    color: Colors.textSecondary,
+  },
   closeModalBtn: {
     width: "100%",
     backgroundColor: Colors.primary,

@@ -1,7 +1,7 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View, Text, StyleSheet, FlatList, Pressable, Platform,
-  ActivityIndicator, Modal, ScrollView,
+  ActivityIndicator, Modal, ScrollView, Animated,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -38,6 +38,26 @@ export default function AdminParticipantsScreen() {
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const bottomPad = Platform.OS === "web" ? 34 : insets.bottom;
   const [selectedUser, setSelectedUser] = useState<any>(null);
+  const [blinkOpacity] = useState(new Animated.Value(1));
+
+  useEffect(() => {
+    const animation = Animated.loop(
+      Animated.sequence([
+        Animated.timing(blinkOpacity, {
+          toValue: 0.3,
+          duration: 600,
+          useNativeDriver: true,
+        }),
+        Animated.timing(blinkOpacity, {
+          toValue: 1,
+          duration: 600,
+          useNativeDriver: true,
+        }),
+      ])
+    );
+    animation.start();
+    return () => animation.stop();
+  }, [blinkOpacity]);
 
   const { data: users = [], isLoading } = useQuery<any[]>({
     queryKey: ["/api/users"],
@@ -45,6 +65,14 @@ export default function AdminParticipantsScreen() {
   });
 
   const participants = users.filter(u => u.role === "participant");
+  
+  // Contar participantes por categoria
+  const statsByCategory = {
+    docente: participants.filter(p => p.category === "docente").length,
+    estudante: participants.filter(p => p.category === "estudante").length,
+    preletor: participants.filter(p => p.category === "preletor").length,
+    outro: participants.filter(p => p.category === "outro").length,
+  };
 
   if (user?.role !== "admin") {
     return (
@@ -81,42 +109,84 @@ export default function AdminParticipantsScreen() {
           <Text style={styles.emptyText}>Nenhum participante registado ainda.</Text>
         </View>
       ) : (
-        <FlatList
-          data={participants}
-          keyExtractor={item => String(item.id)}
-          contentContainerStyle={[styles.list, { paddingBottom: bottomPad + 80 }]}
-          showsVerticalScrollIndicator={false}
-          renderItem={({ item, index }) => (
-            <Pressable
-              style={({ pressed }) => [styles.participantCard, pressed && { opacity: 0.85 }]}
-              onPress={() => setSelectedUser(item)}
+        <>
+          {/* Stat Cards - Contagem por Categoria */}
+          <View style={styles.statsSection}>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.statsScrollContent}
+              scrollEventThrottle={16}
             >
-              <View style={styles.positionBadge}>
-                <Text style={styles.positionNumber}>{index + 1}</Text>
-              </View>
-              <View style={styles.cardMiddle}>
-                <Text style={styles.participantName} numberOfLines={1}>{item.full_name}</Text>
-                <Text style={styles.participantCat}>
-                  {CATEGORY_LABELS[item.category]} · {item.affiliation === "urnm" ? "URNM" : "Externo"}
-                </Text>
-                <Text style={styles.participantInstitution} numberOfLines={1}>
-                  {item.institution || "—"}
-                </Text>
-              </View>
-              <View style={styles.qrThumb}>
-                {item.qr_code ? (
-                  <QRCode
-                    value={buildQrValue(item)}
-                    size={48}
-                    color={Colors.primary}
-                  />
-                ) : (
-                  <Ionicons name="qr-code-outline" size={32} color={Colors.mediumGray} />
-                )}
-              </View>
-            </Pressable>
-          )}
-        />
+              <StatCard
+                title="Docente/Investigador"
+                count={statsByCategory.docente}
+                color="#FF6B6B"
+                icon="person"
+              />
+              <StatCard
+                title="Estudante"
+                count={statsByCategory.estudante}
+                color="#4ECDC4"
+                icon="school"
+              />
+              <StatCard
+                title="Preletor"
+                count={statsByCategory.preletor}
+                color="#FFE66D"
+                icon="mic"
+              />
+              <StatCard
+                title="Outro"
+                count={statsByCategory.outro}
+                color="#95E1D3"
+                icon="help-circle"
+              />
+            </ScrollView>
+            
+            {/* Blinking scroll indicator */}
+            <Animated.View style={[styles.scrollIndicator, { opacity: blinkOpacity }]}>
+              <Ionicons name="arrow-forward" size={20} color={Colors.primary} />
+            </Animated.View>
+          </View>
+
+          <FlatList
+            data={participants}
+            keyExtractor={item => String(item.id)}
+            contentContainerStyle={[styles.list, { paddingBottom: bottomPad + 80 }]}
+            showsVerticalScrollIndicator={false}
+            renderItem={({ item, index }) => (
+              <Pressable
+                style={({ pressed }) => [styles.participantCard, pressed && { opacity: 0.85 }]}
+                onPress={() => setSelectedUser(item)}
+              >
+                <View style={styles.positionBadge}>
+                  <Text style={styles.positionNumber}>{index + 1}</Text>
+                </View>
+                <View style={styles.cardMiddle}>
+                  <Text style={styles.participantName} numberOfLines={1}>{item.full_name}</Text>
+                  <Text style={styles.participantCat}>
+                    {CATEGORY_LABELS[item.category]} · {item.affiliation === "urnm" ? "URNM" : "Externo"}
+                  </Text>
+                  <Text style={styles.participantInstitution} numberOfLines={1}>
+                    {item.institution || "—"}
+                  </Text>
+                </View>
+                <View style={styles.qrThumb}>
+                  {item.qr_code ? (
+                    <QRCode
+                      value={buildQrValue(item)}
+                      size={48}
+                      color={Colors.primary}
+                    />
+                  ) : (
+                    <Ionicons name="qr-code-outline" size={32} color={Colors.mediumGray} />
+                  )}
+                </View>
+              </Pressable>
+            )}
+          />
+        </>
       )}
 
       <Modal
@@ -189,6 +259,25 @@ function QrInfoRow({ label, value }: { label: string; value: string }) {
   );
 }
 
+function StatCard({ title, count, color, icon }: { title: string; count: number; color: string; icon: string }) {
+  return (
+    <LinearGradient
+      colors={[color + "15", color + "08"]}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 1, y: 1 }}
+      style={styles.statCard}
+    >
+      <View style={[styles.statCardIconContainer, { backgroundColor: color + "25" }]}>
+        <Ionicons name={icon as any} size={28} color={color} />
+      </View>
+      <View style={styles.statCardContent}>
+        <Text style={styles.statCardTitle} numberOfLines={2}>{title}</Text>
+        <Text style={[styles.statCardCount, { color }]}>{count}</Text>
+      </View>
+    </LinearGradient>
+  );
+}
+
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
   centered: { flex: 1, alignItems: "center", justifyContent: "center", gap: 12, padding: 32 },
@@ -209,6 +298,65 @@ const styles = StyleSheet.create({
   headerCenter: { flex: 1, alignItems: "center" },
   headerTitle: { fontSize: 18, fontFamily: "Poppins_700Bold", color: Colors.text },
   headerSub: { fontSize: 12, fontFamily: "Poppins_400Regular", color: Colors.textSecondary },
+  
+  // Stat Cards Styles
+  statsSection: {
+    paddingTop: 12,
+    paddingHorizontal: 0,
+    paddingBottom: 8,
+    backgroundColor: Colors.white,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+  },
+  statsScrollContent: {
+    paddingHorizontal: 16,
+    gap: 12,
+  },
+  statCard: {
+    width: 140,
+    paddingVertical: 14,
+    paddingHorizontal: 12,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "#00000008",
+    alignItems: "center",
+    gap: 8,
+    minHeight: 120,
+    justifyContent: "center",
+  },
+  statCardIconContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  statCardContent: {
+    alignItems: "center",
+    gap: 4,
+  },
+  statCardTitle: {
+    fontSize: 11,
+    fontFamily: "Poppins_600SemiBold",
+    color: Colors.text,
+    textAlign: "center",
+    height: 28,
+  },
+  statCardCount: {
+    fontSize: 24,
+    fontFamily: "Poppins_700Bold",
+  },
+  scrollIndicator: {
+    position: "absolute",
+    right: 12,
+    top: "50%",
+    marginTop: -10,
+    width: 24,
+    height: 24,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  
   list: { padding: 16, gap: 10 },
   emptyText: { fontSize: 15, fontFamily: "Poppins_400Regular", color: Colors.textSecondary, textAlign: "center" },
   participantCard: {

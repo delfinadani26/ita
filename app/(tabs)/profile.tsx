@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import {
   View, Text, StyleSheet, ScrollView, Pressable, Platform,
-  Alert, ActivityIndicator, Modal,
+  ActivityIndicator, Modal,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -10,6 +10,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { router } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
 import QRCode from "react-native-qrcode-svg";
+import { useAccessControl } from "@/lib/useAccessControl";
 
 const CATEGORY_LABELS: Record<string, string> = {
   docente: "Docente/Investigador",
@@ -51,29 +52,29 @@ function InfoRow({ icon, label, value }: { icon: string; label: string; value: s
 
 export default function ProfileScreen() {
   const { user, logout } = useAuth();
+  const access = useAccessControl(user);
   const insets = useSafeAreaInsets();
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const bottomPad = Platform.OS === "web" ? 34 : insets.bottom;
   const [showQrModal, setShowQrModal] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
 
   const handleLogout = () => {
-    Alert.alert(
-      "Terminar Sessão",
-      "Tem a certeza que deseja terminar a sessão?",
-      [
-        { text: "Cancelar", style: "cancel" },
-        {
-          text: "Terminar",
-          style: "destructive",
-          onPress: async () => {
-            setLoggingOut(true);
-            await logout();
-            router.replace("/(auth)/login");
-          },
-        },
-      ]
-    );
+    setShowLogoutModal(true);
+  };
+
+  const confirmLogout = async () => {
+    setLoggingOut(true);
+    try {
+      await logout();
+      setShowLogoutModal(false);
+      router.replace("/(auth)/login");
+    } catch (error: any) {
+      console.error("Logout error:", error);
+      setLoggingOut(false);
+      setShowLogoutModal(false);
+    }
   };
 
   if (!user) return null;
@@ -115,20 +116,31 @@ export default function ProfileScreen() {
             <Text style={styles.qrTitle}>Código QR</Text>
             <Text style={styles.qrSub}>Apresente na entrada do congresso</Text>
             <Text style={styles.qrType}>{typeLabel}</Text>
-            <Pressable
-              style={({ pressed }) => [styles.qrBtn, pressed && { opacity: 0.8 }]}
-              onPress={() => setShowQrModal(true)}
-            >
-              <Ionicons name="expand-outline" size={16} color={Colors.primary} />
-              <Text style={styles.qrBtnText}>Ver completo</Text>
-            </Pressable>
+            {access.canViewQR ? (
+              <Pressable
+                style={({ pressed }) => [styles.qrBtn, pressed && { opacity: 0.8 }]}
+                onPress={() => setShowQrModal(true)}
+              >
+                <Ionicons name="expand-outline" size={16} color={Colors.primary} />
+                <Text style={styles.qrBtnText}>Ver completo</Text>
+              </Pressable>
+            ) : (
+              <View style={styles.blockedQRBtn}>
+                <Ionicons name="lock-closed-outline" size={16} color={Colors.danger} />
+                <Text style={styles.blockedQRBtnText}>Bloqueado até aprovação</Text>
+              </View>
+            )}
           </View>
           <View style={styles.qrPreview}>
-            {user.qr_code ? (
+            {user.qr_code && access.canViewQR ? (
               <QRCode value={qrValue} size={80} color={Colors.primary} />
             ) : (
-              <View style={styles.qrPlaceholder}>
-                <Ionicons name="qr-code-outline" size={40} color={Colors.mediumGray} />
+              <View style={[styles.qrPlaceholder, !access.canViewQR && { opacity: 0.4 }]}>
+                <Ionicons 
+                  name={access.canViewQR ? "qr-code-outline" : "lock-closed-outline"} 
+                  size={40} 
+                  color={Colors.mediumGray} 
+                />
               </View>
             )}
           </View>
@@ -148,7 +160,7 @@ export default function ProfileScreen() {
           )}
           {user.payment_status === "approved" && (
             <Text style={styles.paymentNote}>
-              A sua comunicação foi aprovada. Efectue o pagamento para confirmar a sua participação.
+              A sua apresentação foi aprovada. Effectue o pagamento para confirmar a sua participação.
             </Text>
           )}
         </View>
@@ -231,6 +243,55 @@ export default function ProfileScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* Modal de Confirmação Logout */}
+      <Modal
+        visible={showLogoutModal}
+        animationType="fade"
+        transparent
+        onRequestClose={() => !loggingOut && setShowLogoutModal(false)}
+      >
+        <View style={styles.logoutModalOverlay}>
+          <View style={styles.logoutModalContent}>
+            <View style={styles.logoutIconContainer}>
+              <Ionicons name="alert-circle" size={48} color={Colors.danger} />
+            </View>
+            
+            <Text style={styles.logoutModalTitle}>Terminar Sessão</Text>
+            <Text style={styles.logoutModalMessage}>
+              Tem a certeza que deseja terminar a sessão?
+            </Text>
+
+            <View style={styles.logoutModalButtons}>
+              <Pressable
+                style={({ pressed }) => [
+                  styles.logoutModalBtnCancel,
+                  pressed && !loggingOut && { opacity: 0.7 }
+                ]}
+                onPress={() => setShowLogoutModal(false)}
+                disabled={loggingOut}
+              >
+                <Text style={styles.logoutModalBtnCancelText}>Cancelar</Text>
+              </Pressable>
+
+              <Pressable
+                style={({ pressed }) => [
+                  styles.logoutModalBtnConfirm,
+                  pressed && !loggingOut && { opacity: 0.85 }
+                ]}
+                onPress={confirmLogout}
+                disabled={loggingOut}
+              >
+                {loggingOut ? (
+                  <ActivityIndicator color={Colors.white} size="small" />
+                ) : (
+                  <Text style={styles.logoutModalBtnConfirmText}>Terminar</Text>
+                )}
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -296,6 +357,18 @@ const styles = StyleSheet.create({
     alignSelf: "flex-start",
   },
   qrBtnText: { fontSize: 12, fontFamily: "Poppins_600SemiBold", color: Colors.primary },
+  blockedQRBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    marginTop: 8,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 20,
+    backgroundColor: Colors.danger + "12",
+    alignSelf: "flex-start",
+  },
+  blockedQRBtnText: { fontSize: 12, fontFamily: "Poppins_600SemiBold", color: Colors.danger },
   qrPreview: { padding: 8, borderRadius: 10, backgroundColor: Colors.offWhite },
   qrPlaceholder: {
     width: 80,
@@ -427,5 +500,82 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
     textAlign: "center",
     paddingBottom: 20,
+  },
+  // ✅ MODAL LOGOUT
+  logoutModalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.6)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  logoutModalContent: {
+    backgroundColor: Colors.white,
+    borderRadius: 20,
+    padding: 28,
+    width: "90%",
+    maxWidth: 340,
+    alignItems: "center",
+    gap: 16,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  logoutIconContainer: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: Colors.danger + "15",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 4,
+  },
+  logoutModalTitle: {
+    fontSize: 18,
+    fontFamily: "Poppins_700Bold",
+    color: Colors.text,
+    textAlign: "center",
+  },
+  logoutModalMessage: {
+    fontSize: 14,
+    fontFamily: "Poppins_400Regular",
+    color: Colors.textSecondary,
+    textAlign: "center",
+    lineHeight: 20,
+  },
+  logoutModalButtons: {
+    width: "100%",
+    gap: 10,
+    marginTop: 12,
+    flexDirection: "row",
+  },
+  logoutModalBtnCancel: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: Colors.lightGray,
+    backgroundColor: Colors.white,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  logoutModalBtnCancelText: {
+    fontSize: 14,
+    fontFamily: "Poppins_600SemiBold",
+    color: Colors.textSecondary,
+  },
+  logoutModalBtnConfirm: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 12,
+    backgroundColor: Colors.danger,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  logoutModalBtnConfirmText: {
+    fontSize: 14,
+    fontFamily: "Poppins_600SemiBold",
+    color: Colors.white,
   },
 });

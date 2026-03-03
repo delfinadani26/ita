@@ -9,12 +9,26 @@ import { Colors } from "@/constants/colors";
 import { useQuery } from "@tanstack/react-query";
 import { router } from "expo-router";
 import { useAuth } from "@/contexts/AuthContext";
+import { useAccessControl } from "@/lib/useAccessControl";
+import { RestrictedAccessScreen } from "@/components/RestrictedAccessScreen";
 
 export default function MessagesScreen() {
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
+  const access = useAccessControl(user);
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const bottomPad = Platform.OS === "web" ? 34 : insets.bottom;
+
+  // ⛔ Bloqueia acesso se participante não aprovado
+  if (!access.canViewMessages) {
+    return (
+      <RestrictedAccessScreen
+        title="Mensagens Indisponíveis"
+        message={access.pendingApprovalMessage}
+        icon="chatbubbles-outline"
+      />
+    );
+  }
 
   const { data: threads = [], isLoading, refetch } = useQuery<any[]>({
     queryKey: ["/api/messages"],

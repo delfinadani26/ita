@@ -3,6 +3,10 @@ import type { Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import * as fs from "fs";
 import * as path from "path";
+import "dotenv/config";
+
+console.log("📍 DATABASE_URL is:", process.env.DATABASE_URL ? "SET" : "NOT SET");
+console.log("📍 NODE_ENV is:", process.env.NODE_ENV);
 
 const app = express();
 const log = console.log;
@@ -15,6 +19,7 @@ declare module "http" {
 
 function setupCors(app: express.Application) {
   app.use((req, res, next) => {
+    const isDevelopment = process.env.NODE_ENV === "development";
     const origins = new Set<string>();
 
     if (process.env.REPLIT_DEV_DOMAIN) {
@@ -34,14 +39,21 @@ function setupCors(app: express.Application) {
       origin?.startsWith("http://localhost:") ||
       origin?.startsWith("http://127.0.0.1:");
 
-    if (origin && (origins.has(origin) || isLocalhost)) {
+    // Em desenvolvimento, aceitar qualquer origem (para emulador/dispositivo)
+    const shouldAllow = isDevelopment || origin && (origins.has(origin) || isLocalhost);
+
+    if (origin && shouldAllow) {
       res.header("Access-Control-Allow-Origin", origin);
       res.header(
         "Access-Control-Allow-Methods",
-        "GET, POST, PUT, DELETE, OPTIONS",
+        "GET, POST, PUT, DELETE, OPTIONS, HEAD, PATCH"
       );
-      res.header("Access-Control-Allow-Headers", "Content-Type");
+      res.header(
+        "Access-Control-Allow-Headers",
+        "Content-Type, Authorization, X-Requested-With, Accept, Origin"
+      );
       res.header("Access-Control-Allow-Credentials", "true");
+      res.header("Access-Control-Max-Age", "86400");
     }
 
     if (req.method === "OPTIONS") {
@@ -55,13 +67,14 @@ function setupCors(app: express.Application) {
 function setupBodyParsing(app: express.Application) {
   app.use(
     express.json({
+      limit: "10mb",
       verify: (req, _res, buf) => {
         req.rawBody = buf;
       },
     }),
   );
 
-  app.use(express.urlencoded({ extended: false }));
+  app.use(express.urlencoded({ extended: false, limit: "10mb" }));
 }
 
 function setupRequestLogging(app: express.Application) {
@@ -237,11 +250,12 @@ function setupErrorHandler(app: express.Application) {
   setupErrorHandler(app);
 
   const port = parseInt(process.env.PORT || "5000", 10);
+  const host = "0.0.0.0";  // Listen on all interfaces
+  
   server.listen(
     {
       port,
-      host: "0.0.0.0",
-      reusePort: true,
+      host,
     },
     () => {
       log(`express server serving on port ${port}`);

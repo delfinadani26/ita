@@ -39,3 +39,12 @@ yarn-error.*
 .vercel
 
 .env
+# Firebase & Credenciais (SENSÍVEL!)
+firebase-key.json
+google-services.json
+data/migration-backup.json
+
+# Build outputs
+server_dist/
+dist/
+build/

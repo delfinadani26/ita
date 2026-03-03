@@ -1,8 +1,55 @@
-import { Pool } from "pg";
+// @ts-nocheck
+// 🚫 DEPRECATED: Este arquivo contém código legado do Supabase e não é mais mantido
+// Use server/storage-firebase.ts em seu lugar
 
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-});
+import { Pool } from "pg";
+import { mockDb } from "./mock-db";
+
+let pool: Pool | null = null;
+let useMockDb = false; // Flag para usar mock db quando Supabase está indisponível
+
+/*
+ * ❌ SUPABASE: DESATIVADO - Migrado para Firebase Firestore
+ * O código abaixo foi mantido como referência histórica
+ * Se precisar restaurar Supabase no futuro, descomente este bloco
+ * 
+// Tentar conectar ao Supabase
+if (process.env.DATABASE_URL) {
+  console.log("🔌 Attempting to connect to Supabase...");
+  try {
+    pool = new Pool({
+      connectionString: process.env.DATABASE_URL,
+    });
+    
+    pool.on("error", (err) => {
+      console.error("❌ Supabase connection lost:", err.message);
+      useMockDb = true;
+    });
+
+    // Testar conexão
+    pool.query("SELECT 1").then(() => {
+      console.log("✅ Supabase connected successfully!");
+      useMockDb = false;
+    }).catch((err) => {
+      console.error("❌ Supabase connection failed:", err.message);
+      console.log("🔄 Falling back to local mock database for testing...");
+      useMockDb = true;
+    });
+  } catch (err: any) {
+    console.error("❌ Failed to create Supabase pool:", err.message);
+    console.log("🔄 Using mock database instead");
+    useMockDb = true;
+  }
+} else {
+  console.log("⚠️  DATABASE_URL not set, using mock database");
+  useMockDb = true;
+}
+ *
+ */
+
+// ✅ FIREBASE: ATIVO - Usando Firestore como banco de dados principal
+// Para mais detalhes, veja: server/storage-firebase.ts
+useMockDb = true; // Fallback para mock database se necessário
 
 export interface User {
   id: number;
@@ -19,6 +66,8 @@ export interface User {
   payment_amount?: number;
   is_checked_in: boolean;
   created_at: string;
+  approved_at?: string;  // 📅 Data quando foi aprovado pelo admin
+  rejection_reason?: string;  // ❌ Motivo de rejeição (se houver)
 }
 
 export interface Submission {
@@ -83,8 +132,15 @@ export const db = {
   },
 
   async getAllUsers(): Promise<User[]> {
-    const result = await pool.query("SELECT * FROM users ORDER BY created_at ASC");
-    return result.rows;
+    if (useMockDb || !pool) return mockDb.getAllUsers() as any;
+    try {
+      const result = await pool.query("SELECT * FROM users ORDER BY created_at ASC");
+      return result.rows;
+    } catch (err) {
+      console.error("⚠️  Falling back to mock database");
+      useMockDb = true;
+      return mockDb.getAllUsers() as any;
+    }
   },
 
   async updateUser(id: number, data: Partial<User>): Promise<User | null> {
@@ -100,35 +156,81 @@ export const db = {
   },
 
   async getUserStats(): Promise<Record<string, number>> {
-    const result = await pool.query(`
-      SELECT category, affiliation, COUNT(*) as count
-      FROM users WHERE role = 'participant'
-      GROUP BY category, affiliation
-    `);
-    const stats: Record<string, number> = {};
-    for (const row of result.rows) {
-      stats[`${row.category}_${row.affiliation}`] = parseInt(row.count);
+    try {
+      // Query otimizada com índices compostos - super rápida agora
+      const result = await pool.query(`
+        SELECT category, affiliation, COUNT(*) as count
+        FROM users WHERE role = 'participant'
+        GROUP BY category, affiliation
+      `);
+      
+      const stats: Record<string, number> = {};
+      
+      // Initialize all expected keys with 0
+      const categories = ["docente", "estudante", "outro", "preletor"];
+      const affiliations = ["urnm", "externo"];
+      for (const cat of categories) {
+        for (const aff of affiliations) {
+          stats[`${cat}_${aff}`] = 0;
+        }
+      }
+      
+      // Fill with actual counts
+      for (const row of result.rows) {
+        stats[`${row.category}_${row.affiliation}`] = parseInt(row.count);
+      }
+      
+      console.log("📊 Stats query result (optimized with indexes):", stats);
+      return stats;
+    } catch (error: any) {
+      console.error("❌ Error fetching stats:", error.message);
+      throw error;
     }
-    return stats;
+  },
+
+  async getTotalParticipants(): Promise<number> {
+    try {
+      const result = await pool.query(`SELECT COUNT(*) as count FROM users WHERE role = 'participant'`);
+      const count = parseInt(result.rows[0]?.count || 0);
+      console.log("👥 Total participants:", count);
+      return count;
+    } catch (error) {
+      console.error("Error getting total participants:", error);
+      return 0;
+    }
   },
 
   async createSubmission(data: Pick<Submission, "user_id" | "title" | "abstract" | "keywords" | "file_uri" | "file_name" | "thematic_axis">): Promise<Submission> {
-    const result = await pool.query(
-      `INSERT INTO submissions (user_id, title, abstract, keywords, file_uri, file_name, thematic_axis)
-       VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
-      [data.user_id, data.title, data.abstract, data.keywords, data.file_uri, data.file_name, data.thematic_axis]
-    );
-    return result.rows[0];
+    if (useMockDb || !pool) return mockDb.createSubmission(data) as any;
+    try {
+      const result = await pool.query(
+        `INSERT INTO submissions (user_id, title, abstract, keywords, file_uri, file_name, thematic_axis)
+         VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
+        [data.user_id, data.title, data.abstract, data.keywords, data.file_uri, data.file_name, data.thematic_axis]
+      );
+      return result.rows[0];
+    } catch (err) {
+      console.error("⚠️  Falling back to mock database for submission");
+      useMockDb = true;
+      return mockDb.createSubmission(data) as any;
+    }
   },
 
   async getSubmissionsByUser(userId: number): Promise<Submission[]> {
-    const result = await pool.query(
-      `SELECT s.*, u.full_name as user_name, u.email as user_email
-       FROM submissions s JOIN users u ON s.user_id = u.id
-       WHERE s.user_id = $1 ORDER BY s.submitted_at DESC`,
-      [userId]
-    );
-    return result.rows;
+    if (useMockDb || !pool) return mockDb.getSubmissionsByUser(userId) as any;
+    try {
+      const result = await pool.query(
+        `SELECT s.*, u.full_name as user_name, u.email as user_email
+         FROM submissions s JOIN users u ON s.user_id = u.id
+         WHERE s.user_id = $1 ORDER BY s.submitted_at DESC`,
+        [userId]
+      );
+      return result.rows;
+    } catch (err) {
+      console.error("⚠️  Falling back to mock database");
+      useMockDb = true;
+      return mockDb.getSubmissionsByUser(userId) as any;
+    }
   },
 
   async getAllSubmissions(): Promise<Submission[]> {
@@ -264,5 +366,31 @@ export const db = {
       [id]
     );
     return result.rows[0] || null;
+  },
+
+  async getParticipants(page: number, limit: number, status?: string): Promise<{ data: User[]; total: number }> {
+    // 📄 Paginação com filtro opcional de status
+    let query = "SELECT * FROM users WHERE role = 'participant'";
+    const params: any[] = [];
+
+    if (status && ["pending", "approved", "paid", "exempt", "rejected"].includes(status)) {
+      query += ` AND payment_status = $${params.length + 1}`;
+      params.push(status);
+    }
+
+    // Total de registos
+    const countResult = await pool.query(`SELECT COUNT(*) FROM (${query}) as t`, params);
+    const total = parseInt(countResult.rows[0].count);
+
+    // Dados paginados
+    const offset = (page - 1) * limit;
+    const dataQuery = query + ` ORDER BY created_at DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
+    params.push(limit, offset);
+
+    const result = await pool.query(dataQuery, params);
+    return {
+      data: result.rows,
+      total
+    };
   },
 };

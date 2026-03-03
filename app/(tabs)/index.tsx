@@ -6,9 +6,11 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import { Colors } from "@/constants/colors";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { router } from "expo-router";
 import { useAuth } from "@/contexts/AuthContext";
+import { getApiUrl } from "@/lib/query-client";
+import EventCountdownModal from "@/components/EventCountdownModal";
 
 const THEMATIC_AXES = [
   { n: 1, title: "Ensino e Investigação aplicada ao sector agro-alimentar" },
@@ -28,6 +30,89 @@ const CATEGORY_LABELS: Record<string, string> = {
   outro: "Outro",
   preletor: "Preletor (Autor)",
 };
+
+function ParticipantCountSection() {
+  const { data: stats, isLoading } = useQuery({
+    queryKey: ["participant-stats"],
+    queryFn: async () => {
+      const response = await fetch(`${getApiUrl()}/api/stats/participants`);
+      return response.json();
+    },
+    refetchInterval: 30000, // Atualiza a cada 30 segundos
+  });
+
+  if (isLoading || !stats?.total) {
+    return null;
+  }
+
+  const categoryColors: Record<string, string> = {
+    docente: Colors.info,
+    estudante: Colors.success,
+    outro: Colors.warning,
+    preletor: Colors.danger,
+  };
+
+  const categoryIcons: Record<string, string> = {
+    docente: "school-outline",
+    estudante: "book-outline",
+    outro: "person-outline",
+    preletor: "megaphone-outline",
+  };
+
+  return (
+    <View style={styles.countingSection}>
+      <View style={styles.countingHeader}>
+        <Ionicons name="people-outline" size={22} color={Colors.primary} />
+        <Text style={styles.countingTitle}>Participantes Registados</Text>
+      </View>
+      
+      {/* Total */}
+      <LinearGradient
+        colors={[Colors.primary, Colors.primaryDark]}
+        style={styles.countingTotalCard}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+      >
+        <Text style={styles.countingTotalNum}>{stats.total}</Text>
+        <Text style={styles.countingTotalLabel}>Total de Participantes</Text>
+        <Text style={styles.countingTotalSub}>
+          {stats.by_status?.checked_in || 0} já fizeram check-in
+        </Text>
+      </LinearGradient>
+
+      {/* Por Categoria */}
+      <View style={styles.countingGrid}>
+        {Object.entries(stats.by_category || {}).map(([category, count]: [string, any]) => (
+          <View key={category} style={styles.countingCard}>
+            <View style={[styles.countingIconBox, { backgroundColor: categoryColors[category] + "15" }]}>
+              <Ionicons name={categoryIcons[category] as any} size={24} color={categoryColors[category]} />
+            </View>
+            <Text style={styles.countingNum}>{count}</Text>
+            <Text style={styles.countingLabel}>{CATEGORY_LABELS[category] || category}</Text>
+          </View>
+        ))}
+      </View>
+
+      {/* Status */}
+      <View style={styles.statusRow}>
+        <View style={styles.statusBadge}>
+          <Ionicons name="checkmark-circle" size={16} color={Colors.success} />
+          <Text style={styles.statusText}>
+            <Text style={{ fontFamily: "Poppins_700Bold" }}>{stats.by_status?.paid || 0}</Text>
+            <Text> Pagos</Text>
+          </Text>
+        </View>
+        <View style={styles.statusBadge}>
+          <Ionicons name="hourglass" size={16} color={Colors.info} />
+          <Text style={styles.statusText}>
+            <Text style={{ fontFamily: "Poppins_700Bold" }}>{stats.by_status?.approved || 0}</Text>
+            <Text> Aprovados</Text>
+          </Text>
+        </View>
+      </View>
+    </View>
+  );
+}
 
 function StatCard({ label, value, color, icon }: { label: string; value: string | number; color: string; icon: string }) {
   return (
@@ -61,7 +146,7 @@ function AccessStatusCard({ user }: { user: any }) {
   } else {
     status = "unverified";
     title = "Inscrição Pendente";
-    subtitle = "Aguarde a aprovação da sua comunicação ou contacte a organização";
+    subtitle = "Aguarde a aprovação da sua apresentação ou contacte a organização";
     bgColor = Colors.warning;
     icon = "hourglass-outline";
   }
@@ -93,7 +178,10 @@ function AccessStatusCard({ user }: { user: any }) {
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
+  const queryClient = useQueryClient();
   const [showWelcome, setShowWelcome] = React.useState(false);
+  const [showCountdownModal, setShowCountdownModal] = React.useState(false);
+  const lastModalTimeRef = React.useRef<number>(0);
 
   React.useEffect(() => {
     if (user) {
@@ -102,16 +190,53 @@ export default function HomeScreen() {
       return () => clearTimeout(timer);
     }
   }, [user?.id]);
+
+  // Show countdown modal every 1 minute after login
+  React.useEffect(() => {
+    if (!user || user.role !== "participant") return;
+
+    const now = new Date();
+    const eventEnd = new Date("2026-04-30");
+    
+    // Don't show after event ends
+    if (now > eventEnd) return;
+
+    // Show modal immediately on first login
+    setShowCountdownModal(true);
+    lastModalTimeRef.current = Date.now();
+
+    // Set up interval to show modal every 1 minute
+    const intervalId = setInterval(() => {
+      const timeSinceLastModal = Date.now() - lastModalTimeRef.current;
+      if (timeSinceLastModal >= 60000) { // 1 minute
+        setShowCountdownModal(true);
+        lastModalTimeRef.current = Date.now();
+      }
+    }, 10000); // Check every 10 seconds if 1 minute has passed
+
+    return () => clearInterval(intervalId);
+  }, [user]);
+
+  const handleCloseModal = () => {
+    setShowCountdownModal(false);
+  };
+
+  const handleQRPress = () => {
+    setShowCountdownModal(false);
+    router.push("/entry-scan");
+  };
+
+  const handleCameraPress = () => {
+    setShowCountdownModal(false);
+    router.push("/scanner");
+  };
+
+  const handleCheckInPress = () => {
+    setShowCountdownModal(false);
+    router.push("/entry-scan");
+  };
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const bottomPad = Platform.OS === "web" ? 34 : insets.bottom;
-
-  const { data: stats } = useQuery<Record<string, number>>({
-    queryKey: ["/api/stats"],
-  });
-
-  const total = stats
-    ? Object.values(stats).reduce((a, b) => a + b, 0)
-    : 0;
 
   const today = new Date();
   const start = new Date("2026-03-01");
@@ -198,6 +323,58 @@ export default function HomeScreen() {
         <AccessStatusCard user={user} />
       )}
 
+      {/* ✅ QUICK CHECK-IN BUTTON - Bem visível para participantes */}
+      {user && user.role === "participant" && (
+        <Pressable
+          style={({ pressed }) => [styles.checkInCard, pressed && { opacity: 0.85 }]}
+          onPress={() => router.push("/entry-scan")}
+        >
+          <LinearGradient
+            colors={["#FF6B6B", "#FF8787"]}
+            style={styles.checkInGrad}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+          >
+            <View style={styles.checkInContent}>
+              <View style={styles.checkInIconBox}>
+                <Ionicons name="qr-code" size={36} color={Colors.white} />
+              </View>
+              <View style={styles.checkInTextBox}>
+                <Text style={styles.checkInTitle}>Mostrar Código QR</Text>
+                <Text style={styles.checkInSub}>Apresente seu código na entrada</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={24} color={Colors.white} />
+            </View>
+          </LinearGradient>
+        </Pressable>
+      )}
+
+      {/* 📅 PROGRAMA - Visível para aprovados e admin/avaliadores */}
+      {user && (user.role === "admin" || user.role === "avaliador" || user.payment_status !== "pending") && (
+        <Pressable
+          style={({ pressed }) => [styles.programCard, pressed && { opacity: 0.85 }]}
+          onPress={() => router.push("/(tabs)/program")}
+        >
+          <LinearGradient
+            colors={[Colors.accent, Colors.primary]}
+            style={styles.programCardGrad}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+          >
+            <View style={styles.programCardContent}>
+              <View style={styles.programCardLeft}>
+                <Ionicons name="calendar-outline" size={28} color={Colors.white} />
+              </View>
+              <View style={styles.programCardMiddle}>
+                <Text style={styles.programCardTitle}>Visualizar Programa</Text>
+                <Text style={styles.programCardSub}>Agenda de eventos e atividades</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={22} color="rgba(255,255,255,0.7)" />
+            </View>
+          </LinearGradient>
+        </Pressable>
+      )}
+
       {user && (
         <Pressable
           style={({ pressed }) => [styles.entryScanBtn, pressed && { opacity: 0.85 }]}
@@ -209,19 +386,8 @@ export default function HomeScreen() {
         </Pressable>
       )}
 
-      <Text style={styles.sectionTitle}>Participantes Registados</Text>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-        <View style={styles.statsRow}>
-          <StatCard label="Total" value={total} color={Colors.primary} icon="people-outline" />
-          <StatCard label="Docentes URNM" value={stats?.["docente_urnm"] ?? 0} color={Colors.accent} icon="school-outline" />
-          <StatCard label="Docentes Externos" value={stats?.["docente_externo"] ?? 0} color={Colors.info} icon="briefcase-outline" />
-          <StatCard label="Estudantes URNM" value={stats?.["estudante_urnm"] ?? 0} color={Colors.success} icon="book-outline" />
-          <StatCard label="Estudantes Externos" value={stats?.["estudante_externo"] ?? 0} color="#8B5CF6" icon="reader-outline" />
-          <StatCard label="Outros URNM" value={stats?.["outro_urnm"] ?? 0} color={Colors.warning} icon="person-outline" />
-          <StatCard label="Outros Externos" value={stats?.["outro_externo"] ?? 0} color={Colors.danger} icon="globe-outline" />
-          <StatCard label="Prelectores" value={(stats?.["preletor_urnm"] ?? 0) + (stats?.["preletor_externo"] ?? 0)} color="#EC4899" icon="mic-outline" />
-        </View>
-      </ScrollView>
+      {/* 📊 CONTAGEM DE PARTICIPANTES */}
+      <ParticipantCountSection />
 
       <Text style={styles.sectionTitle}>Eixos Temáticos</Text>
       {THEMATIC_AXES.map(ax => (
@@ -270,6 +436,17 @@ export default function HomeScreen() {
           </LinearGradient>
         </Pressable>
       )}
+      
+      {/* Event Countdown Modal - Shows every 1 minute */}
+      <EventCountdownModal
+        visible={showCountdownModal}
+        onClose={handleCloseModal}
+        onQRPress={handleQRPress}
+        onCameraPress={handleCameraPress}
+        onCheckInPress={handleCheckInPress}
+        eventStartDate={new Date("2026-03-01")}
+        eventEndDate={new Date("2026-04-30")}
+      />
     </ScrollView>
   );
 }
@@ -341,6 +518,52 @@ const styles = StyleSheet.create({
   accessMiddle: { flex: 1, gap: 3 },
   accessTitle: { fontSize: 14, fontFamily: "Poppins_700Bold", color: Colors.white },
   accessSub: { fontSize: 11, fontFamily: "Poppins_400Regular", color: "rgba(255,255,255,0.85)", lineHeight: 16 },
+  
+  // ✅ CHECK-IN CARD
+  checkInCard: { borderRadius: 16, overflow: "hidden", marginBottom: 16 },
+  checkInGrad: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 16,
+    gap: 12,
+  },
+  checkInContent: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  checkInIconBox: {
+    width: 56,
+    height: 56,
+    borderRadius: 14,
+    backgroundColor: "rgba(255, 255, 255, 0.2)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  checkInTextBox: { flex: 1, gap: 2 },
+  checkInTitle: { fontSize: 15, fontFamily: "Poppins_700Bold", color: Colors.white },
+  checkInSub: { fontSize: 12, fontFamily: "Poppins_400Regular", color: "rgba(255, 255, 255, 0.85)" },
+  
+  // 📅 PROGRAMA CARD
+  programCard: { borderRadius: 16, overflow: "hidden", marginBottom: 16 },
+  programCardGrad: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 16,
+    gap: 12,
+  },
+  programCardContent: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  programCardLeft: { width: 48, height: 48, alignItems: "center", justifyContent: "center" },
+  programCardMiddle: { flex: 1, gap: 2 },
+  programCardTitle: { fontSize: 14, fontFamily: "Poppins_700Bold", color: Colors.white },
+  programCardSub: { fontSize: 11, fontFamily: "Poppins_400Regular", color: "rgba(255,255,255,0.85)" },
+  
   entryScanBtn: {
     flexDirection: "row",
     alignItems: "center",
@@ -366,6 +589,55 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   statsRow: { flexDirection: "row", gap: 10, paddingRight: 16, marginBottom: 24 },
+  statsPlaceholder: {
+    backgroundColor: Colors.white,
+    borderRadius: 14,
+    padding: 40,
+    alignItems: "center",
+    gap: 12,
+    marginBottom: 24,
+  },
+  statsPlaceholderText: {
+    fontSize: 14,
+    fontFamily: "Poppins_400Regular",
+    color: Colors.textSecondary,
+  },
+  errorCard: {
+    backgroundColor: Colors.danger + "10",
+    borderRadius: 14,
+    padding: 20,
+    alignItems: "center",
+    gap: 12,
+    marginBottom: 24,
+    borderWidth: 1,
+    borderColor: Colors.danger + "30",
+  },
+  errorTitle: {
+    fontSize: 16,
+    fontFamily: "Poppins_600SemiBold",
+    color: Colors.danger,
+  },
+  errorMessage: {
+    fontSize: 13,
+    fontFamily: "Poppins_400Regular",
+    color: Colors.danger + "BB",
+    textAlign: "center",
+  },
+  retryBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: Colors.danger,
+    borderRadius: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    gap: 8,
+    marginTop: 8,
+  },
+  retryBtnText: {
+    fontSize: 13,
+    fontFamily: "Poppins_600SemiBold",
+    color: Colors.white,
+  },
   statCard: {
     backgroundColor: Colors.white,
     borderRadius: 14,
@@ -382,6 +654,104 @@ const styles = StyleSheet.create({
   },
   statValue: { fontSize: 22, fontFamily: "Poppins_700Bold", color: Colors.text },
   statLabel: { fontSize: 11, fontFamily: "Poppins_400Regular", color: Colors.textSecondary, textAlign: "center" },
+  countingSection: {
+    marginVertical: 16,
+    gap: 12,
+  },
+  countingHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: 4,
+    marginBottom: 4,
+  },
+  countingTitle: {
+    fontSize: 16,
+    fontFamily: "Poppins_600SemiBold",
+    color: Colors.text,
+  },
+  countingTotalCard: {
+    borderRadius: 16,
+    padding: 18,
+    alignItems: "center",
+    gap: 4,
+  },
+  countingTotalNum: {
+    fontSize: 42,
+    fontFamily: "Poppins_700Bold",
+    color: Colors.white,
+  },
+  countingTotalLabel: {
+    fontSize: 14,
+    fontFamily: "Poppins_600SemiBold",
+    color: "rgba(255,255,255,0.9)",
+  },
+  countingTotalSub: {
+    fontSize: 12,
+    fontFamily: "Poppins_400Regular",
+    color: "rgba(255,255,255,0.7)",
+    marginTop: 4,
+  },
+  countingGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
+    justifyContent: "space-between",
+  },
+  countingCard: {
+    flex: 1,
+    minWidth: "48%",
+    backgroundColor: Colors.white,
+    borderRadius: 14,
+    padding: 14,
+    alignItems: "center",
+    gap: 6,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 6,
+    elevation: 2,
+  },
+  countingIconBox: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  countingNum: {
+    fontSize: 24,
+    fontFamily: "Poppins_700Bold",
+    color: Colors.text,
+  },
+  countingLabel: {
+    fontSize: 12,
+    fontFamily: "Poppins_500Medium",
+    color: Colors.textSecondary,
+    textAlign: "center",
+  },
+  statusRow: {
+    flexDirection: "row",
+    gap: 10,
+    justifyContent: "space-between",
+  },
+  statusBadge: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: Colors.background,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  statusText: {
+    fontSize: 13,
+    fontFamily: "Poppins_400Regular",
+    color: Colors.text,
+  },
   axisCard: {
     flexDirection: "row",
     alignItems: "flex-start",

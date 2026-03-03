@@ -77,43 +77,60 @@ export default function EntryScanScreen() {
 
       {mode === "status" && (
         <View style={styles.statusContent}>
-          {accessStatus === "welcome" && (
-            <LinearGradient colors={[Colors.success, Colors.success + "CC"]} style={styles.statusCard}>
-              <Ionicons name="checkmark-circle" size={72} color={Colors.white} />
-              <Text style={styles.statusTitle}>Bem-vindo(a)!</Text>
-              <Text style={styles.statusName}>{user.full_name}</Text>
-              <Text style={styles.statusType}>{userType}</Text>
-              <Text style={styles.statusInstitution}>
+          {/* QR CODE DISPLAY - Mostrar código QR do participante */}
+          <View style={styles.qrDisplayBox}>
+            <Text style={styles.qrDisplayTitle}>Seu Código QR</Text>
+            <Text style={styles.qrDisplaySub}>Apresente este código na entrada</Text>
+            <View style={styles.qrCodeContainer}>
+              {user?.qr_code ? (
+                <QRCode
+                  value={JSON.stringify({
+                    id: user.qr_code,
+                    nome: user.full_name,
+                    categoria: CATEGORY_LABELS[user.category] || user.category,
+                    tipo: userType,
+                    instituicao: user.institution || (user.affiliation === "urnm" ? "Universidade Rainha N'Jinga Mbande" : "Instituição Externa"),
+                    congresso: "CSA URNM 2026",
+                  })}
+                  size={200}
+                  color={Colors.primary}
+                />
+              ) : (
+                <Ionicons name="qr-code-outline" size={100} color={Colors.mediumGray} />
+              )}
+            </View>
+            <View style={styles.qrInfoBox}>
+              <Text style={styles.qrInfoName}>{user.full_name}</Text>
+              <Text style={styles.qrInfoType}>{userType}</Text>
+              <Text style={styles.qrInfoInstitution}>
                 {user.institution || (user.affiliation === "urnm" ? "Universidade Rainha N'Jinga Mbande" : "Instituição Externa")}
               </Text>
-              <View style={styles.statusDivider} />
-              <Text style={styles.statusCongress}>Congresso sobre Sistemas Alimentares 2026</Text>
-              <Text style={styles.statusConfirm}>Acesso confirmado ✓</Text>
+            </View>
+          </View>
+
+          {/* STATUS VERIFICATION */}
+          {accessStatus === "welcome" && (
+            <LinearGradient colors={[Colors.success, Colors.success + "CC"]} style={styles.statusCard}>
+              <Ionicons name="checkmark-circle" size={56} color={Colors.white} />
+              <Text style={styles.statusTitle}>Acesso Confirmado</Text>
+              <Text style={styles.statusConfirm}>Seu acesso ao congresso está confirmado ✓</Text>
             </LinearGradient>
           )}
 
           {accessStatus === "pending" && (
             <LinearGradient colors={[Colors.info, Colors.info + "CC"]} style={styles.statusCard}>
-              <Ionicons name="card-outline" size={72} color={Colors.white} />
+              <Ionicons name="card-outline" size={56} color={Colors.white} />
               <Text style={styles.statusTitle}>Aprovado</Text>
-              <Text style={styles.statusName}>{user.full_name}</Text>
-              <Text style={styles.statusType}>{userType}</Text>
-              <View style={styles.statusDivider} />
-              <Text style={styles.statusCongress}>Congresso sobre Sistemas Alimentares 2026</Text>
               <Text style={styles.statusPending}>
-                Aguardando pagamento de {user.payment_amount?.toLocaleString("pt-AO") || "—"} Kz
+                Aguardando pagamento para confirmar acesso ao congresso
               </Text>
             </LinearGradient>
           )}
 
           {accessStatus === "not_registered" && (
             <LinearGradient colors={[Colors.warning, Colors.warning + "CC"]} style={styles.statusCard}>
-              <Ionicons name="hourglass-outline" size={72} color={Colors.white} />
+              <Ionicons name="hourglass-outline" size={56} color={Colors.white} />
               <Text style={styles.statusTitle}>Aguardando Aprovação</Text>
-              <Text style={styles.statusName}>{user.full_name}</Text>
-              <Text style={styles.statusType}>{userType}</Text>
-              <View style={styles.statusDivider} />
-              <Text style={styles.statusCongress}>Congresso sobre Sistemas Alimentares 2026</Text>
               <Text style={styles.statusPending}>
                 A sua inscrição está a ser verificada. Por favor contacte a organização.
               </Text>
@@ -214,7 +231,7 @@ export default function EntryScanScreen() {
                 <Text style={styles.modalName}>{user.full_name}</Text>
                 <Text style={styles.modalWarningText}>
                   {resultModal === "pending"
-                    ? "A sua comunicação foi aprovada. Efectue o pagamento para confirmar o acesso."
+                    ? "A sua apresentação foi aprovada. Efectue o pagamento para confirmar o acesso."
                     : "A sua inscrição ainda não foi confirmada. Por favor contacte a organização do congresso."}
                 </Text>
                 <Pressable style={[styles.modalBtn, { backgroundColor: Colors.warning }]} onPress={closeModal}>
@@ -248,16 +265,50 @@ const styles = StyleSheet.create({
     padding: 16,
     gap: 14,
   },
+  
+  // QR Display Styles
+  qrDisplayBox: {
+    backgroundColor: Colors.white,
+    borderRadius: 24,
+    padding: 20,
+    alignItems: "center",
+    gap: 12,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 10,
+    elevation: 3,
+  },
+  qrDisplayTitle: { fontSize: 18, fontFamily: "Poppins_700Bold", color: Colors.text },
+  qrDisplaySub: { fontSize: 12, fontFamily: "Poppins_400Regular", color: Colors.textSecondary },
+  qrCodeContainer: {
+    backgroundColor: Colors.offWhite,
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 2,
+    borderColor: Colors.primary + "30",
+  },
+  qrInfoBox: {
+    width: "100%",
+    backgroundColor: Colors.lightGray,
+    borderRadius: 14,
+    padding: 14,
+    alignItems: "center",
+    gap: 6,
+  },
+  qrInfoName: { fontSize: 15, fontFamily: "Poppins_600SemiBold", color: Colors.text },
+  qrInfoType: { fontSize: 12, fontFamily: "Poppins_400Regular", color: Colors.textSecondary },
+  qrInfoInstitution: { fontSize: 11, fontFamily: "Poppins_400Regular", color: Colors.textLight, textAlign: "center" },
+  
   statusCard: {
     borderRadius: 24,
     padding: 28,
     alignItems: "center",
     gap: 8,
-    flex: 1,
+    minHeight: 160,
     justifyContent: "center",
-    maxHeight: 420,
   },
-  statusTitle: { fontSize: 26, fontFamily: "Poppins_700Bold", color: Colors.white },
+  statusTitle: { fontSize: 20, fontFamily: "Poppins_700Bold", color: Colors.white },
   statusName: { fontSize: 18, fontFamily: "Poppins_600SemiBold", color: Colors.white, textAlign: "center" },
   statusType: { fontSize: 14, fontFamily: "Poppins_400Regular", color: "rgba(255,255,255,0.85)", textAlign: "center" },
   statusInstitution: { fontSize: 12, fontFamily: "Poppins_400Regular", color: "rgba(255,255,255,0.7)", textAlign: "center" },

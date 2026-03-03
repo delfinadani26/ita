@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import {
   View, Text, StyleSheet, TextInput, Pressable,
-  ScrollView, Alert, Platform, ActivityIndicator,
+  ScrollView, Platform, ActivityIndicator, Modal,
 } from "react-native";
 import { router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -46,6 +46,9 @@ export default function RegisterScreen() {
   const { register } = useAuth();
   const insets = useSafeAreaInsets();
   const [loading, setLoading] = useState(false);
+  const [errorModalVisible, setErrorModalVisible] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [form, setForm] = useState({
     full_name: "",
     email: "",
@@ -93,10 +96,16 @@ export default function RegisterScreen() {
   };
 
   const handleRegister = async () => {
+    // ⏱️ THROTTLE: Se já está enviando, não faz novamente
+    if (isSubmitting) return;
+    
     if (!validate()) {
-      Alert.alert("Formulário inválido", "Por favor corrija os erros assinalados");
+      setErrorMessage("Por favor corrija os erros assinalados");
+      setErrorModalVisible(true);
       return;
     }
+    
+    setIsSubmitting(true);
     setLoading(true);
     try {
       await register({
@@ -108,16 +117,32 @@ export default function RegisterScreen() {
         affiliation: form.affiliation,
         institution: form.institution.trim(),
       });
+      
       router.replace("/(tabs)");
     } catch (err: any) {
-      const msg = err.message || "Erro ao registar";
-      if (msg.includes("409") || msg.toLowerCase().includes("já registado")) {
-        Alert.alert("Email em uso", "Este email já está registado. Faça login ou use outro email.");
+      const msg = (err.message || "Erro ao registar").toLowerCase();
+      
+      let errorMsg = "Erro ao registar";
+      
+      if (msg.includes("rate limit")) {
+        errorMsg = "Limite de requisições do servidor atingido. Aguarde alguns minutos antes de tentar novamente com outro email.";
+      } else if (msg.includes("409") || msg.includes("já registado") || msg.includes("already registered")) {
+        errorMsg = "Este email já está registado. Faça login ou use outro email.";
+      } else if (msg.includes("invalid email")) {
+        errorMsg = "Formato de email inválido.";
+      } else if (msg.includes("password")) {
+        errorMsg = "A palavra-passe deve ter pelo menos 6 caracteres.";
+      } else if (msg.includes("network")) {
+        errorMsg = "Erro de conexão. Verifique sua internet e tente novamente.";
       } else {
-        Alert.alert("Erro de registo", msg);
+        errorMsg = msg.charAt(0).toUpperCase() + msg.slice(1);
       }
+      
+      setErrorMessage(errorMsg);
+      setErrorModalVisible(true);
     } finally {
       setLoading(false);
+      setIsSubmitting(false);
     }
   };
 
@@ -125,10 +150,11 @@ export default function RegisterScreen() {
   const bottomPadding = Platform.OS === "web" ? 34 : insets.bottom;
 
   return (
-    <LinearGradient
-      colors={[Colors.primaryDark, Colors.primary]}
-      style={styles.gradient}
-    >
+    <>
+      <LinearGradient
+        colors={[Colors.primaryDark, Colors.primary]}
+        style={styles.gradient}
+      >
       <ScrollView
         contentContainerStyle={[
           styles.container,
@@ -243,9 +269,13 @@ export default function RegisterScreen() {
           />
 
           <Pressable
-            style={({ pressed }) => [styles.registerBtn, pressed && { opacity: 0.85 }]}
+            style={({ pressed }) => [
+              styles.registerBtn,
+              (loading || isSubmitting) && { opacity: 0.6 },
+              pressed && !loading && !isSubmitting && { opacity: 0.85 }
+            ]}
             onPress={handleRegister}
-            disabled={loading}
+            disabled={loading || isSubmitting}
           >
             <LinearGradient
               colors={[Colors.accent, Colors.accentDark]}
@@ -256,10 +286,17 @@ export default function RegisterScreen() {
               {loading ? (
                 <ActivityIndicator color={Colors.white} />
               ) : (
-                <Text style={styles.registerBtnText}>Criar Conta</Text>
+                <Text style={styles.registerBtnText}>{isSubmitting ? "Processando..." : "Criar Conta"}</Text>
               )}
             </LinearGradient>
           </Pressable>
+
+          {errorMessage && (
+            <View style={styles.infoBox}>
+              <Ionicons name="information-circle-outline" size={16} color={Colors.info} />
+              <Text style={styles.infoBoxText}>Dica: Se tiver erro de limite, use um email diferente e tente novamente.</Text>
+            </View>
+          )}
 
           <View style={styles.loginRow}>
             <Text style={styles.loginText}>Já tem conta? </Text>
@@ -269,7 +306,34 @@ export default function RegisterScreen() {
           </View>
         </View>
       </ScrollView>
-    </LinearGradient>
+      </LinearGradient>
+
+      {/* Custom Error Modal */}
+      <Modal
+        visible={errorModalVisible}
+        animationType="fade"
+        transparent
+        onRequestClose={() => setErrorModalVisible(false)}
+      >
+        <View style={styles.errorModalOverlay}>
+          <View style={styles.errorModalContent}>
+            <View style={styles.errorIconContainer}>
+              <Ionicons name="alert-circle" size={48} color={Colors.danger} />
+            </View>
+            
+            <Text style={styles.errorModalTitle}>Erro</Text>
+            <Text style={styles.errorModalMessage}>{errorMessage}</Text>
+            
+            <Pressable
+              style={({ pressed }) => [styles.errorModalBtn, pressed && { opacity: 0.8 }]}
+              onPress={() => setErrorModalVisible(false)}
+            >
+              <Text style={styles.errorModalBtnText}>OK</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
+    </>
   );
 }
 
@@ -431,5 +495,82 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontFamily: "Poppins_600SemiBold",
     color: Colors.primary,
+  },
+
+  // Error Modal
+  errorModalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 24,
+  },
+  errorModalContent: {
+    backgroundColor: Colors.white,
+    borderRadius: 20,
+    padding: 28,
+    alignItems: "center",
+    width: "100%",
+    maxWidth: 320,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.25,
+    shadowRadius: 16,
+    elevation: 12,
+  },
+  errorIconContainer: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: `${Colors.danger}15`,
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 16,
+  },
+  errorModalTitle: {
+    fontSize: 20,
+    fontFamily: "Poppins_700Bold",
+    color: Colors.text,
+    marginBottom: 8,
+  },
+  errorModalMessage: {
+    fontSize: 14,
+    fontFamily: "Poppins_400Regular",
+    color: Colors.textSecondary,
+    textAlign: "center",
+    marginBottom: 24,
+    lineHeight: 20,
+  },
+  errorModalBtn: {
+    backgroundColor: Colors.danger,
+    paddingVertical: 12,
+    paddingHorizontal: 32,
+    borderRadius: 10,
+    minWidth: 100,
+    alignItems: "center",
+  },
+  errorModalBtnText: {
+    fontSize: 14,
+    fontFamily: "Poppins_600SemiBold",
+    color: Colors.white,
+  },
+  infoBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    backgroundColor: Colors.info + "15",
+    borderLeftWidth: 3,
+    borderLeftColor: Colors.info,
+    marginTop: 12,
+  },
+  infoBoxText: {
+    flex: 1,
+    fontSize: 12,
+    fontFamily: "Poppins_400Regular",
+    color: Colors.info,
+    lineHeight: 16,
   },
 });

@@ -1,0 +1,10 @@
+­ƒöî Attempting to connect to Supabase...
+­ƒôì DATABASE_URL is: SET
+­ƒôì NODE_ENV is: undefined
+Serving static Expo files with dynamic manifest routing
+Expo routing: Checking expo-platform header on / and /manifest
+express server serving on port 5000
+­ƒöä Falling back to local mock database for testing...
+ÔØî Supabase connection failed: 
+GET /api/check/raw-sql 200 in 7ms :: {"totalUsers":0,"totalParticipants":0,"byRÔÇª
+POST /api/submissions 401 in 2ms :: {"message":"N├úo autenticado"}

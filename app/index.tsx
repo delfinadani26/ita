@@ -40,12 +40,12 @@ export default function SplashRedirect() {
     <View style={styles.container}>
       <Animated.View style={[styles.content, { opacity: fadeAnim, transform: [{ scale: scaleAnim }] }]}>
         <Image
-          source={require("../assets/images/icon.png")}
+          source={require("../assets/images/favicon.png")}
           style={styles.logo}
           resizeMode="contain"
         />
         <Text style={styles.universityName}>Universidade Rainha N'Jinga Mbande</Text>
-        <Text style={styles.subtitle}>Congresso Científico 2026</Text>
+        <Text style={styles.subtitle}>Congresso de Alimentação 2026</Text>
         <View style={styles.divider} />
         <Text style={styles.tagline}>Gestão de Eventos Académicos</Text>
       </Animated.View>

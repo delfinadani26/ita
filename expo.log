@@ -1,0 +1,21 @@
+env: load .env.local .env
+env: export EXPO_PUBLIC_DOMAIN EXPO_PUBLIC_SUPABASE_URL EXPO_PUBLIC_SUPABASE_KEY DATABASE_URL SESSION_SECRET
+Starting project at C:\Users\IsaiasGemimaOsvaldo\Downloads\ita2
+React Compiler enabled
+Starting Metro Bundler
+The following packages should be updated for best compatibility with the installed expo version:
+  expo-local-authentication@55.0.8 - expected version: ~17.0.8
+  expo-secure-store@55.0.8 - expected version: ~15.0.8
+Your project may not work correctly until you install the expected versions of the packages.
+Waiting on http://localhost:8081
+Logs for your project will appear below.
+Web node_modules\expo-router\entry.js ÔûôÔûôÔûôÔûôÔûæÔûæÔûæÔûæÔûæÔûæÔûæÔûæÔûæÔûæÔûæÔûæ 29.0% ( 97/275)
+╬╗ node_modules\expo-router\node\render.js ÔûôÔûôÔûôÔûôÔûôÔûôÔûæÔûæÔûæÔûæÔûæÔûæÔûæÔûæÔûæÔûæ 39.8% (311/493)
+Web node_modules\expo-router\entry.js ÔûôÔûôÔûôÔûôÔûôÔûôÔûôÔûôÔûôÔûôÔûôÔûôÔûôÔûôÔûæÔûæ 93.7% (1389/1435)
+╬╗ node_modules\expo-router\node\render.js ÔûôÔûôÔûôÔûôÔûôÔûôÔûôÔûôÔûôÔûôÔûôÔûôÔûôÔûôÔûæÔûæ 91.8% (1418/1481)
+╬╗ Bundled 5397ms node_modules\expo-router\node\render.js (1605 modules)
+"shadow*" style props are deprecated. Use "boxShadow".
+Web node_modules\expo-router\entry.js ÔûôÔûôÔûôÔûôÔûôÔûôÔûôÔûôÔûôÔûôÔûôÔûôÔûôÔûôÔûôÔûæ 99.9% (1576/1576)
+Web Bundled 9046ms node_modules\expo-router\entry.js (1576 modules)
+Web node_modules\expo-router\entry.js ÔûôÔûôÔûôÔûôÔûôÔûôÔûôÔûôÔûôÔûôÔûôÔûôÔûôÔûôÔûôÔûæ 99.9% (1576/1576)
+Web Bundled 1280ms node_modules\expo-router\entry.js (1539 modules)

@@ -1,8 +1,11 @@
 {
   "expo": {
-    "name": "CSA URNM",
+    "name": "ita_congresso",
     "slug": "urnm-congresso",
     "version": "1.0.0",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "urnmcongresso",
@@ -15,10 +18,18 @@
     },
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.myapp"
+      "bundleIdentifier": "com.urnm.congresso",
+      "buildNumber": "1"
     },
     "android": {
-      "package": "com.myapp",
+      "package": "com.urnm.congresso",
+      "versionCode": 1,
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.USE_BIOMETRIC",
+        "android.permission.USE_FINGERPRINT",
+        "android.permission.RECORD_AUDIO"
+      ],
       "adaptiveIcon": {
         "backgroundColor": "#FFFFFF",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
@@ -27,7 +38,24 @@
       }
     },
     "web": {
-      "favicon": "./assets/images/favicon.png"
+      "favicon": "./assets/images/favicon.png",
+      "build": {
+        "babel": {
+          "include": [
+            "expo-router"
+          ]
+        }
+      },
+      "bundler": "metro",
+      "output": "static",
+      "homepage": "/",
+      "name": "CSA URNM"
+    },
+    "updates": {
+      "enabled": true,
+      "checkAutomatically": "ON_LOAD",
+      "fallbackToCacheTimeout": 0,
+      "url": "https://u.expo.dev/YOUR_PROJECT_ID"
     },
     "plugins": [
       [
@@ -39,11 +67,21 @@
       "expo-font",
       "expo-web-browser",
       "expo-camera",
-      "expo-document-picker"
+      "expo-document-picker",
+      "expo-local-authentication",
+      "expo-secure-store"
     ],
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "extra": {
+      "router": {
+        "origin": "https://replit.com/"
+      },
+      "eas": {
+        "projectId": "1656207c-5e61-43aa-8b74-956eb504ca41"
+      }
     }
   }
 }
